@@ -1,0 +1,199 @@
+/* AgriSync auth page - design tokens */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  --agri-forest: #1f3d2b;
+  --agri-leaf: #3f6b39;
+  --agri-gold: #e8b94a;
+  --agri-cream: #faf6ec;
+  --agri-soil: #2a2622;
+  --agri-mist: #ece7d8;
+}
+
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  font-family: "Inter", sans-serif;
+  color: var(--agri-soil);
+}
+
+/* LEFT PANEL */
+.auth-brand {
+  position: relative;
+  flex: 1 1 42%;
+  min-width: 320px;
+  background: linear-gradient(160deg, var(--agri-forest) 0%, var(--agri-leaf) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 48px 44px;
+  overflow: hidden;
+}
+
+.auth-brand__mark {
+  width: 130px;
+  height: 130px;
+  margin-bottom: 12px;
+}
+
+.auth-brand__text {
+  margin-top: auto;
+  margin-bottom: 64px;
+  max-width: 360px;
+}
+
+.auth-brand__wordmark {
+  display: block;
+  font-family: "Fraunces", serif;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--agri-cream);
+  letter-spacing: 0.2px;
+  margin-bottom: 14px;
+}
+
+.auth-brand__tagline {
+  font-family: "Fraunces", serif;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--agri-mist);
+}
+
+.auth-brand__field-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  background: repeating-linear-gradient(
+    100deg,
+    rgba(232, 185, 74, 0.12) 0px,
+    rgba(232, 185, 74, 0.12) 2px,
+    transparent 2px,
+    transparent 26px
+  );
+}
+
+/* RIGHT PANEL */
+.auth-formside {
+  flex: 1 1 58%;
+  background: var(--agri-cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.auth-card__heading {
+  font-family: "Fraunces", serif;
+  font-size: 30px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--agri-forest);
+}
+
+.auth-card__subheading {
+  font-size: 14.5px;
+  color: #6b6355;
+  margin: 0 0 30px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--agri-forest);
+}
+
+.auth-input {
+  font-family: "Inter", sans-serif;
+  font-size: 15px;
+  padding: 11px 14px;
+  border: 1px solid var(--agri-mist);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--agri-soil);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-input:focus {
+  border-color: var(--agri-leaf);
+  box-shadow: 0 0 0 3px rgba(63, 107, 57, 0.15);
+}
+
+.auth-error {
+  font-size: 13.5px;
+  color: #b3402f;
+  margin: 0;
+}
+
+.auth-submit {
+  margin-top: 6px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--agri-forest);
+  color: var(--agri-cream);
+  font-family: "Inter", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: var(--agri-leaf);
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-switch {
+  display: block;
+  margin: 20px auto 0;
+  background: none;
+  border: none;
+  color: var(--agri-leaf);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* MOBILE: stack panels */
+@media (max-width: 760px) {
+  .auth-screen {
+    flex-direction: column;
+  }
+  .auth-brand {
+    padding: 32px 28px;
+    min-height: 260px;
+  }
+  .auth-brand__text {
+    margin-bottom: 24px;
+  }
+  .auth-brand__wordmark {
+    font-size: 32px;
+  }
+  .auth-brand__tagline {
+    font-size: 16px;
+  }
+}

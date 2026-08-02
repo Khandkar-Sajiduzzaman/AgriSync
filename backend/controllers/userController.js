@@ -1,0 +1,148 @@
+// Controllers hold the actual logic for each route - this is the
+// equivalent of the code inside your PHP files that handled a form
+// POST or a page request. Routes just point HTTP methods + URLs to
+// these functions.
+
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+
+// helper: create a signed JWT for a given user id
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+};
+
+// @route  POST /api/users/register
+// @desc   Create a new farmer or buyer profile (sign up)
+const registerUser = async (req, res) => {
+  try {
+    const { name, email, password, role, phone, address } = req.body;
+
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ message: "Name, email, password, and role are required" });
+    }
+
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: "An account with this email already exists" });
+    }
+
+    const user = await User.create({ name, email, password, role, phone, address });
+
+    res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token: generateToken(user._id),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  POST /api/users/login
+// @desc   Log in and receive a token
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // .select("+password") is needed because the schema hides password by default
+    const user = await User.findOne({ email }).select("+password");
+
+    if (user && (await user.matchPassword(password))) {
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      });
+    } else {
+      res.status(401).json({ message: "Invalid email or password" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  GET /api/users/profile
+// @desc   Get the logged-in user's own profile
+const getProfile = async (req, res) => {
+  // req.user was attached by the authMiddleware after verifying the token
+  res.json(req.user);
+};
+
+// @route  PUT /api/users/profile
+// @desc   Update the logged-in user's profile fields
+const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.name = req.body.name || user.name;
+    user.phone = req.body.phone ?? user.phone;
+    user.address = req.body.address ?? user.address;
+    user.bio = req.body.bio ?? user.bio;
+
+    // only touch the password if a new one was actually sent
+    if (req.body.password) {
+      user.password = req.body.password; // pre-save hook will hash it
+    }
+
+    const updatedUser = await user.save();
+
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      phone: updatedUser.phone,
+      address: updatedUser.address,
+      bio: updatedUser.bio,
+      profileImage: updatedUser.profileImage,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  PUT /api/users/profile/image
+// @desc   Upload/replace the profile picture
+const uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file was uploaded" });
+    }
+
+    const user = await User.findById(req.user.id);
+    user.profileImage = `/uploads/${req.file.filename}`;
+    await user.save();
+
+    res.json({ profileImage: user.profileImage });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  DELETE /api/users/profile
+// @desc   Delete the logged-in user's account
+const deleteProfile = async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.user.id);
+    res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getProfile,
+  updateProfile,
+  uploadProfileImage,
+  deleteProfile,
+};
