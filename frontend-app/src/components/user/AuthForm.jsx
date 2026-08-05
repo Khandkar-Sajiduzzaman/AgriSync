@@ -2,7 +2,7 @@
 // panel (farmer silhouette + wordmark + tagline) and a cream form panel.
 
 import { useState } from "react";
-import { registerUser, loginUser } from "../api/userApi";
+import { registerUser, loginUser } from "../../api/userApi";
 import "./AuthForm.css";
 
 function AuthForm({ onAuthSuccess }) {

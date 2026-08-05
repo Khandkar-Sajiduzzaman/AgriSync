@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
-import ProductForm from "../components/ProductForm";
+import ProductForm from "../components/product/ProductForm";
 
 import {
   getProduct,
