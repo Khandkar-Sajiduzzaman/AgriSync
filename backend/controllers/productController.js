@@ -39,9 +39,28 @@ const createProduct = async (req, res) => {
 
 // @route GET /api/products
 // @desc Get all products
+// @route GET /api/products
+// @desc Get all products (supports optional search/filter query params)
 const getProducts = async (req, res) => {
   try {
-    const products = await Product.find().populate(
+    const { search, category, minPrice, maxPrice } = req.query;
+    const filter = {};
+
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
+    }
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (minPrice || maxPrice) {
+      filter.price = {};
+      if (minPrice) filter.price.$gte = Number(minPrice);
+      if (maxPrice) filter.price.$lte = Number(maxPrice);
+    }
+
+    const products = await Product.find(filter).populate(
       "farmer",
       "name phone address"
     );

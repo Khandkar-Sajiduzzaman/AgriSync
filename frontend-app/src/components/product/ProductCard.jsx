@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-function ProductCard({ product, onDelete }) {
+function ProductCard({ product, onDelete, showActions = true }) {
   return (
     <div
       style={{
@@ -11,7 +11,6 @@ function ProductCard({ product, onDelete }) {
         boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
       }}
     >
-      {/* Product Image */}
       {product.images && product.images.length > 0 ? (
         <img
           src={`http://localhost:5000${product.images[0]}`}
@@ -53,34 +52,32 @@ function ProductCard({ product, onDelete }) {
         <strong>Stock:</strong> {product.stock}
       </p>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginTop: "15px",
-        }}
-      >
+      <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
         <Link to={`/products/${product._id}`}>
           <button>View</button>
         </Link>
 
-        <Link to={`/products/${product._id}/edit`}>
-          <button>Edit</button>
-        </Link>
+        {showActions && (
+          <>
+            <Link to={`/products/${product._id}/edit`}>
+              <button>Edit</button>
+            </Link>
 
-        <button
-          onClick={() => onDelete(product._id)}
-          style={{
-            backgroundColor: "#d9534f",
-            color: "white",
-            border: "none",
-            padding: "8px 12px",
-            cursor: "pointer",
-            borderRadius: "5px",
-          }}
-        >
-          Delete
-        </button>
+            <button
+              onClick={() => onDelete(product._id)}
+              style={{
+                backgroundColor: "#d9534f",
+                color: "white",
+                border: "none",
+                padding: "8px 12px",
+                cursor: "pointer",
+                borderRadius: "5px",
+              }}
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -25,8 +25,17 @@ export const createProduct = async (productData) => {
 };
 
 // Get All Products
-export const getProducts = async () => {
-  const response = await fetch(API_URL);
+// Get All Products (optionally filtered)
+export const getProducts = async (filters = {}) => {
+  const params = new URLSearchParams();
+
+  if (filters.search) params.append("search", filters.search);
+  if (filters.category) params.append("category", filters.category);
+  if (filters.minPrice) params.append("minPrice", filters.minPrice);
+  if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+
+  const query = params.toString();
+  const response = await fetch(query ? `${API_URL}?${query}` : API_URL);
 
   const data = await response.json();
 

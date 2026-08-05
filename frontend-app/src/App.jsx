@@ -10,6 +10,8 @@ import AddProduct from "./pages/AddProduct";
 import MyProducts from "./pages/MyProducts";
 import EditProduct from "./pages/EditProduct";
 import ProductDetails from "./pages/ProductDetails";
+import BrowseProducts from "./pages/BrowseProducts";
+
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -43,7 +45,7 @@ function App() {
     <Routes>
       <Route element={<MainLayout onLogout={handleLogout} />}>
         <Route path="/" element={<Dashboard />} />
-
+        <Route path="/products/browse" element={<BrowseProducts />} />
         <Route path="/profile" element={<ProfilePage />} />
 
         <Route
