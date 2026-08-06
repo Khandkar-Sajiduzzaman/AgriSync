@@ -4,27 +4,41 @@
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
-
 require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
-const connectDB = require("./config/db");
-const userRoutes = require("./routes/userRoutes");
 
-connectDB(); // open the MongoDB connection
+const connectDB = require("./config/db");
+
+// Routes
+const userRoutes = require("./routes/userRoutes");
+const productRoutes = require("./routes/productRoutes");
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 
-app.use(cors()); // allow the React frontend (different port) to call this API
-app.use(express.json()); // parse incoming JSON bodies, like reading php://input
-app.use("/uploads", express.static("uploads")); // serve uploaded images as static files
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-// any request to /api/users/* is handled by userRoutes.js
+// Serve uploaded images
+app.use("/uploads", express.static("uploads"));
+
+// API Routes
 app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
 
+// Default Route
 app.get("/", (req, res) => {
   res.send("AgriSync API is running");
 });
 
+// Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

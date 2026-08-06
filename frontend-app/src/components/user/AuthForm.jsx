@@ -2,7 +2,7 @@
 // panel (farmer silhouette + wordmark + tagline) and a cream form panel.
 
 import { useState } from "react";
-import { registerUser, loginUser } from "../api/userApi";
+import { registerUser, loginUser } from "../../api/userApi";
 import "./AuthForm.css";
 
 function AuthForm({ onAuthSuccess }) {
@@ -27,9 +27,14 @@ function AuthForm({ onAuthSuccess }) {
 
     try {
       const data =
-        mode === "register" ? await registerUser(form) : await loginUser(form);
+        mode === "register"
+          ? await registerUser(form)
+          : await loginUser(form);
 
+      // Save authentication data
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data));
+
       onAuthSuccess(data);
     } catch (err) {
       setError(err.message);
@@ -49,36 +54,72 @@ function AuthForm({ onAuthSuccess }) {
           aria-hidden="true"
         >
           {/* rising sun */}
-          <circle cx="60" cy="55" r="34" fill="var(--agri-gold)" opacity="0.9" />
-          {/* wheat stalks fanning from behind the farmer */}
-          <g stroke="var(--agri-gold)" strokeWidth="3" strokeLinecap="round" opacity="0.55">
+          <circle
+            cx="60"
+            cy="55"
+            r="34"
+            fill="var(--agri-gold)"
+            opacity="0.9"
+          />
+
+          {/* wheat stalks */}
+          <g
+            stroke="var(--agri-gold)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity="0.55"
+          >
             <path d="M20 150 Q15 110 30 75" fill="none" />
             <path d="M40 158 Q38 115 50 80" fill="none" />
             <path d="M95 158 Q100 115 92 80" fill="none" />
             <path d="M112 152 Q120 112 108 78" fill="none" />
           </g>
-          {/* farmer silhouette: hat */}
+
+          {/* hat */}
           <path
             d="M35 96 Q66 68 97 96 Q90 92 66 92 Q42 92 35 96 Z"
             fill="var(--agri-cream)"
           />
           <ellipse cx="66" cy="97" rx="16" ry="5" fill="var(--agri-cream)" />
+
           {/* head */}
           <circle cx="66" cy="104" r="10" fill="var(--agri-cream)" />
+
           {/* body */}
           <path
             d="M50 122 Q66 112 82 122 L88 168 Q66 178 44 168 Z"
             fill="var(--agri-cream)"
           />
-          {/* arm holding basket */}
-          <path d="M82 128 Q100 132 104 150" stroke="var(--agri-cream)" strokeWidth="7" fill="none" strokeLinecap="round" />
-          <ellipse cx="107" cy="156" rx="13" ry="10" fill="var(--agri-cream)" />
-          {/* basket weave hint */}
-          <path d="M97 154 L117 154 M99 160 L115 160" stroke="var(--agri-forest)" strokeWidth="1.5" opacity="0.4" />
+
+          {/* arm */}
+          <path
+            d="M82 128 Q100 132 104 150"
+            stroke="var(--agri-cream)"
+            strokeWidth="7"
+            fill="none"
+            strokeLinecap="round"
+          />
+
+          {/* basket */}
+          <ellipse
+            cx="107"
+            cy="156"
+            rx="13"
+            ry="10"
+            fill="var(--agri-cream)"
+          />
+
+          <path
+            d="M97 154 L117 154 M99 160 L115 160"
+            stroke="var(--agri-forest)"
+            strokeWidth="1.5"
+            opacity="0.4"
+          />
         </svg>
 
         <div className="auth-brand__text">
           <span className="auth-brand__wordmark">AgriSync</span>
+
           <p className="auth-brand__tagline">
             Your ticket to a healthy ecosystem of nutrition and affordability.
           </p>
@@ -91,8 +132,11 @@ function AuthForm({ onAuthSuccess }) {
       <div className="auth-formside">
         <div className="auth-card">
           <h2 className="auth-card__heading">
-            {mode === "register" ? "Create your profile" : "Welcome back"}
+            {mode === "register"
+              ? "Create your profile"
+              : "Welcome back"}
           </h2>
+
           <p className="auth-card__subheading">
             {mode === "register"
               ? "Join as a farmer or a buyer to get started."
@@ -157,14 +201,24 @@ function AuthForm({ onAuthSuccess }) {
 
             {error && <p className="auth-error">{error}</p>}
 
-            <button className="auth-submit" type="submit" disabled={loading}>
-              {loading ? "Please wait..." : mode === "register" ? "Sign up" : "Log in"}
+            <button
+              className="auth-submit"
+              type="submit"
+              disabled={loading}
+            >
+              {loading
+                ? "Please wait..."
+                : mode === "register"
+                ? "Sign up"
+                : "Log in"}
             </button>
           </form>
 
           <button
             className="auth-switch"
-            onClick={() => setMode(mode === "register" ? "login" : "register")}
+            onClick={() =>
+              setMode(mode === "register" ? "login" : "register")
+            }
           >
             {mode === "register"
               ? "Already have an account? Log in"
