@@ -47,6 +47,18 @@ const userSchema = new mongoose.Schema(
       type: String, // stores the file path/URL, not the image itself
       default: "",
     },
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
+    favoriteFarmers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],    
   },
   {
     timestamps: true, // auto-adds createdAt / updatedAt fields

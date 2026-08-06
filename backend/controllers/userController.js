@@ -137,6 +137,91 @@ const deleteProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// @route  PUT /api/users/wishlist/:productId
+// @desc   Add or remove a product from the buyer's wishlist (toggle)
+const toggleWishlist = async (req, res) => {
+  try {
+    if (req.user.role !== "buyer") {
+      return res.status(403).json({ message: "Only buyers can save products" });
+    }
+
+    const user = await User.findById(req.user.id);
+    const { productId } = req.params;
+
+    const index = user.wishlist.findIndex((id) => id.toString() === productId);
+
+    if (index > -1) {
+      user.wishlist.splice(index, 1);
+    } else {
+      user.wishlist.push(productId);
+    }
+
+    await user.save();
+    res.json({ wishlist: user.wishlist });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  GET /api/users/wishlist
+// @desc   Get the buyer's saved products, populated with product details
+const getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate("wishlist");
+    res.json(user.wishlist);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  PUT /api/users/follow/:farmerId
+// @desc   Follow or unfollow a farmer (toggle)
+const toggleFollowFarmer = async (req, res) => {
+  try {
+    if (req.user.role !== "buyer") {
+      return res.status(403).json({ message: "Only buyers can follow farmers" });
+    }
+
+    const { farmerId } = req.params;
+
+    if (farmerId === req.user.id.toString()) {
+      return res.status(400).json({ message: "You can't follow yourself" });
+    }
+
+    const farmer = await User.findById(farmerId);
+    if (!farmer || farmer.role !== "farmer") {
+      return res.status(404).json({ message: "Farmer not found" });
+    }
+
+    const user = await User.findById(req.user.id);
+    const index = user.favoriteFarmers.findIndex((id) => id.toString() === farmerId);
+
+    if (index > -1) {
+      user.favoriteFarmers.splice(index, 1);
+    } else {
+      user.favoriteFarmers.push(farmerId);
+    }
+
+    await user.save();
+    res.json({ favoriteFarmers: user.favoriteFarmers });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route  GET /api/users/following
+// @desc   Get the farmers the buyer follows
+const getFollowedFarmers = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate(
+      "favoriteFarmers",
+      "name email phone address"
+    );
+    res.json(user.favoriteFarmers);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   registerUser,
@@ -145,4 +230,8 @@ module.exports = {
   updateProfile,
   uploadProfileImage,
   deleteProfile,
+  toggleWishlist,
+  getWishlist,
+  toggleFollowFarmer,
+  getFollowedFarmers,
 };

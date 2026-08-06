@@ -12,6 +12,10 @@ const {
   updateProfile,
   uploadProfileImage,
   deleteProfile,
+  toggleWishlist,
+  getWishlist,
+  toggleFollowFarmer,
+  getFollowedFarmers,
 } = require("../controllers/userController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -25,5 +29,8 @@ router.get("/profile", protect, getProfile);
 router.put("/profile", protect, updateProfile);
 router.put("/profile/image", protect, upload.single("profileImage"), uploadProfileImage);
 router.delete("/profile", protect, deleteProfile);
-
+router.put("/wishlist/:productId", protect, toggleWishlist);
+router.get("/wishlist", protect, getWishlist);
+router.put("/follow/:farmerId", protect, toggleFollowFarmer);
+router.get("/following", protect, getFollowedFarmers);
 module.exports = router;

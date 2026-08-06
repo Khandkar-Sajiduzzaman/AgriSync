@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 
-function ProductCard({ product, onDelete, showActions = true }) {
+function ProductCard({
+  product,
+  onDelete,
+  showActions = true,
+  isWishlisted,
+  onToggleWishlist,
+}) {
   return (
     <div
       style={{
@@ -15,12 +21,7 @@ function ProductCard({ product, onDelete, showActions = true }) {
         <img
           src={`http://localhost:5000${product.images[0]}`}
           alt={product.name}
-          style={{
-            width: "200px",
-            height: "150px",
-            objectFit: "cover",
-            borderRadius: "8px",
-          }}
+          style={{ width: "200px", height: "150px", objectFit: "cover", borderRadius: "8px" }}
         />
       ) : (
         <div
@@ -40,17 +41,9 @@ function ProductCard({ product, onDelete, showActions = true }) {
 
       <h3>{product.name}</h3>
 
-      <p>
-        <strong>Category:</strong> {product.category}
-      </p>
-
-      <p>
-        <strong>Price:</strong> ৳{product.price}
-      </p>
-
-      <p>
-        <strong>Stock:</strong> {product.stock}
-      </p>
+      <p><strong>Category:</strong> {product.category}</p>
+      <p><strong>Price:</strong> ৳{product.price}</p>
+      <p><strong>Stock:</strong> {product.stock}</p>
 
       <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
         <Link to={`/products/${product._id}`}>
@@ -77,6 +70,12 @@ function ProductCard({ product, onDelete, showActions = true }) {
               Delete
             </button>
           </>
+        )}
+
+        {onToggleWishlist && (
+          <button onClick={() => onToggleWishlist(product._id)}>
+            {isWishlisted ? "♥ Saved" : "♡ Save"}
+          </button>
         )}
       </div>
     </div>

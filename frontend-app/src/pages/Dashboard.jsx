@@ -28,10 +28,16 @@ function Dashboard() {
         )}
 
         {role === "buyer" && (
-          <Link to="/products/browse">
-            <button style={{ width: "250px", height: "40px" }}>Browse Products</button>
-          </Link>
-        )}
+  <>
+    <Link to="/products/browse">
+      <button style={{ width: "250px", height: "40px" }}>Browse Products</button>
+    </Link>
+
+    <Link to="/wishlist">
+      <button style={{ width: "250px", height: "40px" }}>My Wishlist</button>
+    </Link>
+  </>
+)}
       </div>
     </div>
   );
