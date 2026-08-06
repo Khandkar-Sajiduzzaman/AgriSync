@@ -6,6 +6,7 @@ import {
   FaBoxOpen,
   FaPlusCircle,
   FaSearch,
+  FaHeart,
   FaSignOutAlt,
 } from "react-icons/fa";
 
@@ -49,12 +50,17 @@ function Navbar({ onLogout }) {
             </Link>
           </>
         )}
-
         {role === "buyer" && (
-          <Link className={active("/products/browse")} to="/products/browse">
-            <FaSearch /> Browse Products
-          </Link>
-        )}
+  <>
+    <Link className={active("/products/browse")} to="/products/browse">
+      <FaSearch /> Browse Products
+    </Link>
+
+    <Link className={active("/wishlist")} to="/wishlist">
+      <FaHeart /> Wishlist
+    </Link>
+  </>
+)}
 
         <button className="logout-btn" onClick={onLogout}>
           <FaSignOutAlt /> Logout

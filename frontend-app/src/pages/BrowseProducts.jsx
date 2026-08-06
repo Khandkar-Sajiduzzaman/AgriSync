@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getProducts } from "../api/productApi";
+import { getWishlist, toggleWishlist } from "../api/userApi";
 import ProductCard from "../components/product/ProductCard";
 
 function BrowseProducts() {
@@ -11,6 +12,9 @@ function BrowseProducts() {
   const [maxPrice, setMaxPrice] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [wishlistIds, setWishlistIds] = useState([]);
+
+  const role = JSON.parse(localStorage.getItem("user"))?.role;
 
   const fetchProducts = async (filters) => {
     setLoading(true);
@@ -35,6 +39,12 @@ function BrowseProducts() {
         setCategories([...new Set(all.map((p) => p.category))]);
       })
       .catch(() => {});
+
+    if (role === "buyer") {
+      getWishlist()
+        .then((items) => setWishlistIds(items.map((p) => p._id)))
+        .catch(() => {});
+    }
   }, []);
 
   const handleSubmit = (e) => {
@@ -48,6 +58,17 @@ function BrowseProducts() {
     setMinPrice("");
     setMaxPrice("");
     fetchProducts({});
+  };
+
+  const handleToggleWishlist = async (productId) => {
+    try {
+      await toggleWishlist(productId);
+      setWishlistIds((prev) =>
+        prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
+      );
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -118,7 +139,13 @@ function BrowseProducts() {
         }}
       >
         {products.map((product) => (
-          <ProductCard key={product._id} product={product} showActions={false} />
+          <ProductCard
+            key={product._id}
+            product={product}
+            showActions={false}
+            isWishlisted={wishlistIds.includes(product._id)}
+            onToggleWishlist={role === "buyer" ? handleToggleWishlist : undefined}
+          />
         ))}
       </div>
     </div>

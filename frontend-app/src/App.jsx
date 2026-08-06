@@ -11,6 +11,7 @@ import MyProducts from "./pages/MyProducts";
 import EditProduct from "./pages/EditProduct";
 import ProductDetails from "./pages/ProductDetails";
 import BrowseProducts from "./pages/BrowseProducts";
+import Wishlist from "./pages/Wishlist";
 
 
 function App() {
@@ -63,6 +64,9 @@ function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
+      <Route
+             path="/wishlist"
+            element={role === "buyer" ? <Wishlist /> : <Navigate to="/" replace />}/>
     </Routes>
   );
 }

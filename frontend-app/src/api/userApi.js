@@ -65,3 +65,40 @@ export const uploadProfileImage = async (file) => {
   if (!res.ok) throw new Error(data.message || "Image upload failed");
   return data;
 };
+export const toggleWishlist = async (productId) => {
+  const res = await fetch(`${BASE_URL}/wishlist/${productId}`, {
+    method: "PUT",
+    headers: { ...authHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Could not update wishlist");
+  return data;
+};
+
+export const getWishlist = async () => {
+  const res = await fetch(`${BASE_URL}/wishlist`, {
+    headers: { ...authHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Could not load wishlist");
+  return data;
+};
+
+export const toggleFollowFarmer = async (farmerId) => {
+  const res = await fetch(`${BASE_URL}/follow/${farmerId}`, {
+    method: "PUT",
+    headers: { ...authHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Could not update follow status");
+  return data;
+};
+
+export const getFollowedFarmers = async () => {
+  const res = await fetch(`${BASE_URL}/following`, {
+    headers: { ...authHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Could not load followed farmers");
+  return data;
+};
