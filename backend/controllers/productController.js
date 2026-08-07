@@ -1,199 +1,171 @@
-const Product = require("../models/Product");
+const prisma = require('../config/db');
 
-// @route  POST /api/products
-// @desc   Create a new product
 const createProduct = async (req, res) => {
   try {
-    // Only farmers can add products
-    if (req.user.role !== "farmer") {
-      return res.status(403).json({
-        message: "Only farmers can add products",
-      });
+    if (req.user.role !== 'farmer') {
+      return res.status(403).json({ message: 'Only farmers can add products' });
     }
 
     const { name, description, category, price, stock } = req.body;
 
-    if (!name || !category || !price) {
-      return res.status(400).json({
-        message: "Name, category and price are required",
-      });
+    if (!name || !category || price === undefined) {
+      return res.status(400).json({ message: 'Name, category and price are required' });
     }
 
-    const product = await Product.create({
-      farmer: req.user._id,
-      name,
-      description,
-      category,
-      price,
-      stock,
-      images: [],
+    const product = await prisma.product.create({
+      data: {
+        farmerId: req.user.id,
+        name,
+        description: description || '',
+        category,
+        price: parseFloat(price),
+        stock: parseInt(stock) || 0,
+        images: [],
+      },
+      include: {
+        farmer: { select: { name: true, phone: true, address: true } },
+      },
     });
 
     res.status(201).json(product);
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    console.error('Create product error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @route GET /api/products
-// @desc Get all products
-// @route GET /api/products
-// @desc Get all products (supports optional search/filter query params)
 const getProducts = async (req, res) => {
   try {
     const { search, category, minPrice, maxPrice } = req.query;
-    const filter = {};
+    const where = {};
 
     if (search) {
-      filter.name = { $regex: search, $options: "i" };
+      where.name = { contains: search, mode: 'insensitive' };
     }
 
     if (category) {
-      filter.category = category;
-    }
+  where.legacyCategory = category;
+}
 
     if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
+      where.price = {};
+      if (minPrice) where.price.gte = parseFloat(minPrice);
+      if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    const products = await Product.find(filter).populate(
-      "farmer",
-      "name phone address"
-    );
+    const products = await prisma.product.findMany({
+      where,
+      include: { farmer: { select: { name: true, phone: true, address: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
 
     res.json(products);
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    console.error('Get products error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @route GET /api/products/:id
-// @desc Get one product
 const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate(
-      "farmer",
-      "name phone address"
-    );
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      include: { farmer: { select: { name: true, phone: true, address: true } } },
+    });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      return res.status(404).json({ message: 'Product not found' });
     }
 
     res.json(product);
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    console.error('Get product error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @route PUT /api/products/:id
-// @desc Update product
 const updateProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await prisma.product.findUnique({ where: { id: req.params.id } });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Only owner farmer can edit
-    if (product.farmer.toString() !== req.user._id.toString()) {
-      return res.status(401).json({
-        message: "Not authorized",
-      });
+    if (product.farmerId !== req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
-    product.name = req.body.name || product.name;
-    product.description = req.body.description ?? product.description;
-    product.category = req.body.category || product.category;
-    product.price = req.body.price ?? product.price;
-    product.stock = req.body.stock ?? product.stock;
+    const { name, description, category, price, stock } = req.body;
+    const data = {};
 
-    const updatedProduct = await product.save();
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (category !== undefined) data.category = category;
+    if (price !== undefined) data.price = parseFloat(price);
+    if (stock !== undefined) data.stock = parseInt(stock);
 
-    res.json(updatedProduct);
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
+    const updated = await prisma.product.update({
+      where: { id: req.params.id },
+      data,
+      include: { farmer: { select: { name: true, phone: true, address: true } } },
     });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update product error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @route DELETE /api/products/:id
-// @desc Delete product
 const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await prisma.product.findUnique({ where: { id: req.params.id } });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    if (product.farmer.toString() !== req.user._id.toString()) {
-      return res.status(401).json({
-        message: "Not authorized",
-      });
+    if (product.farmerId !== req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
-    await product.deleteOne();
-
-    res.json({
-      message: "Product deleted successfully",
-    });
+    await prisma.product.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    console.error('Delete product error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @route PUT /api/products/:id/image
-// @desc Upload product image
 const uploadProductImage = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        message: "No image uploaded",
-      });
+      return res.status(400).json({ message: 'No image uploaded' });
     }
 
-    const product = await Product.findById(req.params.id);
+    const product = await prisma.product.findUnique({ where: { id: req.params.id } });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    if (product.farmer.toString() !== req.user._id.toString()) {
-      return res.status(401).json({
-        message: "Not authorized",
-      });
+    if (product.farmerId !== req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
-    product.images.push(`/uploads/${req.file.filename}`);
+    const updatedImages = [...product.images, `/uploads/${req.file.filename}`];
 
-    await product.save();
-
-    res.json(product);
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
+    const updated = await prisma.product.update({
+      where: { id: req.params.id },
+      data: { images: updatedImages },
+      include: { farmer: { select: { name: true, phone: true, address: true } } },
     });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Upload product image error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 

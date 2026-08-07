@@ -1,224 +1,267 @@
-// Controllers hold the actual logic for each route - this is the
-// equivalent of the code inside your PHP files that handled a form
-// POST or a page request. Routes just point HTTP methods + URLs to
-// these functions.
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const prisma = require('../config/db');
 
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
-
-// helper: create a signed JWT for a given user id
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
-// @route  POST /api/users/register
-// @desc   Create a new farmer or buyer profile (sign up)
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role, phone, address } = req.body;
 
     if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: "Name, email, password, and role are required" });
+      return res.status(400).json({ message: 'Name, email, password, and role are required' });
     }
 
-    const userExists = await User.findOne({ email });
+    const userExists = await prisma.user.findUnique({ where: { email } });
     if (userExists) {
-      return res.status(400).json({ message: "An account with this email already exists" });
+      return res.status(400).json({ message: 'An account with this email already exists' });
     }
 
-    const user = await User.create({ name, email, password, role, phone, address });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+        phone: phone || '',
+        address: address || '',
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
 
     res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token: generateToken(user._id),
+      ...user,
+      token: generateToken(user.id),
     });
   } catch (error) {
+    console.error('Register error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  POST /api/users/login
-// @desc   Log in and receive a token
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // .select("+password") is needed because the schema hides password by default
-    const user = await User.findOne({ email }).select("+password");
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-    if (user && (await user.matchPassword(password))) {
+    if (user && (await bcrypt.compare(password, user.password))) {
       res.json({
-        _id: user._id,
+        _id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id),
+        token: generateToken(user.id),
       });
     } else {
-      res.status(401).json({ message: "Invalid email or password" });
+      res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  GET /api/users/profile
-// @desc   Get the logged-in user's own profile
 const getProfile = async (req, res) => {
-  // req.user was attached by the authMiddleware after verifying the token
   res.json(req.user);
 };
 
-// @route  PUT /api/users/profile
-// @desc   Update the logged-in user's profile fields
 const updateProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    console.log("UPDATE BODY:", req.body);
+    const { name, phone, address, bio, password } = req.body;
+    const data = {};
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (name !== undefined) data.name = name;
+    if (phone !== undefined) data.phone = phone;      
+    if (address !== undefined) data.address = address;
+    if (bio !== undefined) data.bio = bio;            
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      data.password = await bcrypt.hash(password, salt);
     }
 
-    user.name = req.body.name || user.name;
-    user.phone = req.body.phone ?? user.phone;
-    user.address = req.body.address ?? user.address;
-    user.bio = req.body.bio ?? user.bio;
-
-    // only touch the password if a new one was actually sent
-    if (req.body.password) {
-      user.password = req.body.password; // pre-save hook will hash it
-    }
-
-    const updatedUser = await user.save();
-
-    res.json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      phone: updatedUser.phone,
-      address: updatedUser.address,
-      bio: updatedUser.bio,
-      profileImage: updatedUser.profileImage,
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,      // ← MUST INCLUDE
+        address: true,
+        bio: true,        // ← MUST INCLUDE
+        profileImage: true,
+      },
     });
+
+    res.json(updatedUser);
   } catch (error) {
+    console.error('Update profile error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  PUT /api/users/profile/image
-// @desc   Upload/replace the profile picture
 const uploadProfileImage = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: "No image file was uploaded" });
+      return res.status(400).json({ message: 'No image file was uploaded' });
     }
 
-    const user = await User.findById(req.user.id);
-    user.profileImage = `/uploads/${req.file.filename}`;
-    await user.save();
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { profileImage: `/uploads/${req.file.filename}` },
+      select: { profileImage: true },
+    });
 
-    res.json({ profileImage: user.profileImage });
+    res.json(updatedUser);
   } catch (error) {
+    console.error('Upload image error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  DELETE /api/users/profile
-// @desc   Delete the logged-in user's account
 const deleteProfile = async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.user.id);
-    res.json({ message: "Account deleted successfully" });
+    await prisma.user.delete({ where: { id: req.user.id } });
+    res.json({ message: 'Account deleted successfully' });
   } catch (error) {
+    console.error('Delete profile error:', error);
     res.status(500).json({ message: error.message });
   }
 };
-// @route  PUT /api/users/wishlist/:productId
-// @desc   Add or remove a product from the buyer's wishlist (toggle)
+
 const toggleWishlist = async (req, res) => {
   try {
-    if (req.user.role !== "buyer") {
-      return res.status(403).json({ message: "Only buyers can save products" });
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ message: 'Only buyers can save products' });
     }
 
-    const user = await User.findById(req.user.id);
     const { productId } = req.params;
+    const userId = req.user.id;
 
-    const index = user.wishlist.findIndex((id) => id.toString() === productId);
-
-    if (index > -1) {
-      user.wishlist.splice(index, 1);
-    } else {
-      user.wishlist.push(productId);
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    await user.save();
-    res.json({ wishlist: user.wishlist });
+    const existing = await prisma.wishlist.findUnique({
+      where: { userId_productId: { userId, productId } },
+    });
+
+    if (existing) {
+      await prisma.wishlist.delete({
+        where: { userId_productId: { userId, productId } },
+      });
+    } else {
+      await prisma.wishlist.create({ data: { userId, productId } });
+    }
+
+    const wishlist = await prisma.wishlist.findMany({
+      where: { userId },
+      include: { product: { include: { farmer: { select: { name: true, phone: true, address: true } } } } },
+    });
+
+    res.json(wishlist.map((w) => w.product));
   } catch (error) {
+    console.error('Toggle wishlist error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  GET /api/users/wishlist
-// @desc   Get the buyer's saved products, populated with product details
 const getWishlist = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate("wishlist");
-    res.json(user.wishlist);
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ message: 'Only buyers can access wishlist' });
+    }
+    const wishlist = await prisma.wishlist.findMany({
+      where: { userId: req.user.id },
+      include: {
+        product: {
+          include: {
+            farmer: { select: { name: true, phone: true, address: true } },
+          },
+        },
+      },
+    });
+
+    res.json(wishlist.map((w) => w.product));
   } catch (error) {
+    console.error('Get wishlist error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  PUT /api/users/follow/:farmerId
-// @desc   Follow or unfollow a farmer (toggle)
 const toggleFollowFarmer = async (req, res) => {
   try {
-    if (req.user.role !== "buyer") {
-      return res.status(403).json({ message: "Only buyers can follow farmers" });
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ message: 'Only buyers can follow farmers' });
     }
 
     const { farmerId } = req.params;
+    const followerId = req.user.id;
 
-    if (farmerId === req.user.id.toString()) {
+    if (farmerId === followerId) {
       return res.status(400).json({ message: "You can't follow yourself" });
     }
 
-    const farmer = await User.findById(farmerId);
-    if (!farmer || farmer.role !== "farmer") {
-      return res.status(404).json({ message: "Farmer not found" });
+    const farmer = await prisma.user.findUnique({ where: { id: farmerId } });
+    if (!farmer || farmer.role !== 'farmer') {
+      return res.status(404).json({ message: 'Farmer not found' });
     }
 
-    const user = await User.findById(req.user.id);
-    const index = user.favoriteFarmers.findIndex((id) => id.toString() === farmerId);
+    const existing = await prisma.follow.findUnique({
+      where: { followerId_followingId: { followerId, followingId: farmerId } },
+    });
 
-    if (index > -1) {
-      user.favoriteFarmers.splice(index, 1);
+    if (existing) {
+      await prisma.follow.delete({
+        where: { followerId_followingId: { followerId, followingId: farmerId } },
+      });
     } else {
-      user.favoriteFarmers.push(farmerId);
+      await prisma.follow.create({ data: { followerId, followingId: farmerId } });
     }
 
-    await user.save();
-    res.json({ favoriteFarmers: user.favoriteFarmers });
+    const followed = await prisma.follow.findMany({
+      where: { followerId },
+      include: {
+        following: { select: { id: true, name: true, email: true, phone: true, address: true } },
+      },
+    });
+
+    res.json(followed.map((f) => f.following));
   } catch (error) {
+    console.error('Toggle follow error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @route  GET /api/users/following
-// @desc   Get the farmers the buyer follows
 const getFollowedFarmers = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate(
-      "favoriteFarmers",
-      "name email phone address"
-    );
-    res.json(user.favoriteFarmers);
+    const followed = await prisma.follow.findMany({
+      where: { followerId: req.user.id },
+      include: {
+        following: { select: { id: true, name: true, email: true, phone: true, address: true } },
+      },
+    });
+
+    res.json(followed.map((f) => f.following));
   } catch (error) {
+    console.error('Get followed farmers error:', error);
     res.status(500).json({ message: error.message });
   }
 };

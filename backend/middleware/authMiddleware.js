@@ -5,7 +5,7 @@
 // token in the request header on every request.
 
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const prisma = require('../config/db');
 
 const protect = async (req, res, next) => {
   let token;
@@ -19,12 +19,27 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // attach the logged-in user to the request, minus the password
-      req.user = await User.findById(decoded.id).select("-password");
+            const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          address: true,
+          bio: true,
+          profileImage: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-      if (!req.user) {
-        return res.status(401).json({ message: "User no longer exists" });
+      if (!user) {
+        return res.status(401).json({ message: 'User no longer exists' });
       }
 
+      req.user = user;
       next(); // token is valid, continue to the actual route handler
     } catch (error) {
       return res.status(401).json({ message: "Not authorized, invalid token" });

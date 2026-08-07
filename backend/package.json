@@ -1,22 +1,33 @@
 {
   "name": "agrisync-backend",
-  "version": "1.0.0",
-  "description": "AgriSync backend - User Profile Management",
+  "version": "2.0.0",
+  "description": "AgriSync backend - Supabase + Prisma ORM",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "db:generate": "npx prisma generate",
+    "db:migrate": "npx prisma migrate dev",
+    "db:push": "npx prisma db push",
+    "db:seed": "node prisma/seed.js",
+    "db:studio": "npx prisma studio",
+    "db:reset": "npx prisma migrate reset --force && npm run db:seed"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "mongoose": "^8.5.0",
+    "@prisma/client": "^5.16.0",
     "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "cors": "^2.8.5",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4"
+    "nodemon": "^3.1.4",
+    "prisma": "^5.16.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }
