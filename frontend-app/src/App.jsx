@@ -13,7 +13,6 @@ import ProductDetails from "./pages/ProductDetails";
 import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
 
-
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState(null);
@@ -21,6 +20,7 @@ function App() {
   useEffect(() => {
     if (localStorage.getItem("token")) {
       setLoggedIn(true);
+
       const user = JSON.parse(localStorage.getItem("user"));
       setRole(user?.role);
     }
@@ -36,8 +36,14 @@ function App() {
   const handleAuthSuccess = (data) => {
     setLoggedIn(true);
     setRole(data?.role);
+
+    // Save user for future refreshes
+    if (data?.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+    }
   };
 
+  // Show Login/Register if not logged in
   if (!loggedIn) {
     return <AuthForm onAuthSuccess={handleAuthSuccess} />;
   }
@@ -45,28 +51,57 @@ function App() {
   return (
     <Routes>
       <Route element={<MainLayout onLogout={handleLogout} />}>
+        {/* Dashboard */}
         <Route path="/" element={<Dashboard />} />
+
+        {/* Browse Products */}
         <Route path="/products/browse" element={<BrowseProducts />} />
+
+        {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />
 
+        {/* Farmer Only */}
         <Route
           path="/products/add"
           element={
-            role === "farmer" ? <AddProduct /> : <Navigate to="/" replace />
+            role === "farmer" ? (
+              <AddProduct />
+            ) : (
+              <Navigate to="/" replace />
+            )
           }
         />
 
+        {/* Farmer Products */}
         <Route path="/products/my" element={<MyProducts />} />
 
-        <Route path="/products/:id/edit" element={<EditProduct />} />
+        {/* Edit Product */}
+        <Route
+          path="/products/:id/edit"
+          element={<EditProduct />}
+        />
 
-        <Route path="/products/:id" element={<ProductDetails />} />
+        {/* Product Details */}
+        <Route
+          path="/products/:id"
+          element={<ProductDetails />}
+        />
+
+        {/* Buyer Wishlist */}
+        <Route
+          path="/wishlist"
+          element={
+            role === "buyer" ? (
+              <Wishlist />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
       </Route>
 
+      {/* Unknown Routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
-      <Route
-             path="/wishlist"
-            element={role === "buyer" ? <Wishlist /> : <Navigate to="/" replace />}/>
     </Routes>
   );
 }

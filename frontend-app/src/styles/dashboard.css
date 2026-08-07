@@ -1,0 +1,196 @@
+.dashboard{
+    max-width:1300px;
+    margin:auto;
+    padding:20px;
+}
+
+.hero{
+    background:linear-gradient(135deg,#2E7D32,#4CAF50);
+    color:white;
+    border-radius:20px;
+    padding:45px;
+    box-shadow:0 10px 25px rgba(0,0,0,.15);
+    margin-bottom:40px;
+}
+
+.hero h1{
+    margin:0;
+    font-size:42px;
+}
+
+.hero p{
+    margin-top:15px;
+    font-size:18px;
+    opacity:.95;
+}
+
+.hero button{
+    margin-top:25px;
+    background:white;
+    color:#2E7D32;
+    border:none;
+    padding:14px 28px;
+    border-radius:12px;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.hero button:hover{
+    background:#f2f2f2;
+    transform:translateY(-2px);
+}
+
+.section-title{
+    color:#2E7D32;
+    margin-bottom:25px;
+    font-size:30px;
+}
+
+.products-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    gap:25px;
+}
+
+.empty-products{
+    background:white;
+    padding:50px;
+    border-radius:15px;
+    text-align:center;
+    box-shadow:0 6px 18px rgba(0,0,0,.08);
+}
+
+/* ---------- Dashboard Bottom ---------- */
+
+.dashboard-bottom{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:25px;
+    margin-top:40px;
+}
+
+.placeholder-card,
+.chat-card{
+    background:white;
+    border-radius:18px;
+    padding:25px;
+    box-shadow:0 6px 18px rgba(0,0,0,.08);
+}
+
+.placeholder-card h3,
+.chat-card h3{
+    color:#2E7D32;
+    margin-top:0;
+    margin-bottom:18px;
+}
+
+.placeholder-box{
+    height:230px;
+    border:2px dashed #66BB6A;
+    border-radius:15px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    background:#F7FFF7;
+}
+
+.placeholder-box span{
+    font-size:60px;
+}
+
+.placeholder-box h4{
+    margin:15px 0 10px;
+    color:#2E7D32;
+}
+
+.placeholder-box p{
+    color:#666;
+    max-width:260px;
+    text-align:center;
+}
+
+.chat-message{
+    background:#F7F7F7;
+    border-radius:12px;
+    padding:18px;
+    line-height:1.7;
+    color:#555;
+}
+
+.chat-button{
+    width:100%;
+    margin-top:20px;
+    background:#2E7D32;
+    color:white;
+    border:none;
+    padding:14px;
+    border-radius:10px;
+    font-size:15px;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.chat-button:hover{
+    background:#1B5E20;
+}
+
+.quick-actions{
+    margin-top:45px;
+    background:white;
+    border-radius:18px;
+    padding:30px;
+    box-shadow:0 6px 18px rgba(0,0,0,.08);
+}
+
+.quick-actions h2{
+    color:#2E7D32;
+    margin-top:0;
+}
+
+.action-buttons{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    margin-top:20px;
+}
+
+.action-buttons a{
+    text-decoration:none;
+}
+
+.action-buttons button{
+    background:#2E7D32;
+    color:white;
+    border:none;
+    padding:14px 28px;
+    border-radius:10px;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.action-buttons button:hover{
+    background:#1B5E20;
+}
+
+@media(max-width:950px){
+
+.dashboard-bottom{
+    grid-template-columns:1fr;
+}
+
+.hero{
+    padding:30px;
+}
+
+.hero h1{
+    font-size:32px;
+}
+
+.products-grid{
+    grid-template-columns:1fr;
+}
+
+}
