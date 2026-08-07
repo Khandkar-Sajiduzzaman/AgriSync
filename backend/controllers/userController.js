@@ -6,6 +6,8 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
+const withId = (obj) => (obj ? { ...obj, _id: obj.id } : obj);
+
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role, phone, address } = req.body;
@@ -40,7 +42,7 @@ const registerUser = async (req, res) => {
     });
 
     res.status(201).json({
-      ...user,
+      ...withId(user),
       token: generateToken(user.id),
     });
   } catch (error) {
@@ -53,9 +55,7 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (user && (await bcrypt.compare(password, user.password))) {
       res.json({
@@ -75,19 +75,18 @@ const loginUser = async (req, res) => {
 };
 
 const getProfile = async (req, res) => {
-  res.json(req.user);
+  res.json(withId(req.user));
 };
 
 const updateProfile = async (req, res) => {
   try {
-    console.log("UPDATE BODY:", req.body);
     const { name, phone, address, bio, password } = req.body;
     const data = {};
 
     if (name !== undefined) data.name = name;
-    if (phone !== undefined) data.phone = phone;      
+    if (phone !== undefined) data.phone = phone;
     if (address !== undefined) data.address = address;
-    if (bio !== undefined) data.bio = bio;            
+    if (bio !== undefined) data.bio = bio;
 
     if (password) {
       const salt = await bcrypt.genSalt(10);
@@ -102,14 +101,14 @@ const updateProfile = async (req, res) => {
         name: true,
         email: true,
         role: true,
-        phone: true,      // ← MUST INCLUDE
+        phone: true,
         address: true,
-        bio: true,        // ← MUST INCLUDE
+        bio: true,
         profileImage: true,
       },
     });
 
-    res.json(updatedUser);
+    res.json(withId(updatedUser));
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ message: error.message });
@@ -164,9 +163,7 @@ const toggleWishlist = async (req, res) => {
     });
 
     if (existing) {
-      await prisma.wishlist.delete({
-        where: { userId_productId: { userId, productId } },
-      });
+      await prisma.wishlist.delete({ where: { userId_productId: { userId, productId } } });
     } else {
       await prisma.wishlist.create({ data: { userId, productId } });
     }
@@ -176,7 +173,7 @@ const toggleWishlist = async (req, res) => {
       include: { product: { include: { farmer: { select: { name: true, phone: true, address: true } } } } },
     });
 
-    res.json(wishlist.map((w) => w.product));
+    res.json(wishlist.map((w) => withId(w.product)));
   } catch (error) {
     console.error('Toggle wishlist error:', error);
     res.status(500).json({ message: error.message });
@@ -190,16 +187,10 @@ const getWishlist = async (req, res) => {
     }
     const wishlist = await prisma.wishlist.findMany({
       where: { userId: req.user.id },
-      include: {
-        product: {
-          include: {
-            farmer: { select: { name: true, phone: true, address: true } },
-          },
-        },
-      },
+      include: { product: { include: { farmer: { select: { name: true, phone: true, address: true } } } } },
     });
 
-    res.json(wishlist.map((w) => w.product));
+    res.json(wishlist.map((w) => withId(w.product)));
   } catch (error) {
     console.error('Get wishlist error:', error);
     res.status(500).json({ message: error.message });
@@ -229,21 +220,17 @@ const toggleFollowFarmer = async (req, res) => {
     });
 
     if (existing) {
-      await prisma.follow.delete({
-        where: { followerId_followingId: { followerId, followingId: farmerId } },
-      });
+      await prisma.follow.delete({ where: { followerId_followingId: { followerId, followingId: farmerId } } });
     } else {
       await prisma.follow.create({ data: { followerId, followingId: farmerId } });
     }
 
     const followed = await prisma.follow.findMany({
       where: { followerId },
-      include: {
-        following: { select: { id: true, name: true, email: true, phone: true, address: true } },
-      },
+      include: { following: { select: { id: true, name: true, email: true, phone: true, address: true } } },
     });
 
-    res.json(followed.map((f) => f.following));
+    res.json(followed.map((f) => withId(f.following)));
   } catch (error) {
     console.error('Toggle follow error:', error);
     res.status(500).json({ message: error.message });
@@ -254,12 +241,10 @@ const getFollowedFarmers = async (req, res) => {
   try {
     const followed = await prisma.follow.findMany({
       where: { followerId: req.user.id },
-      include: {
-        following: { select: { id: true, name: true, email: true, phone: true, address: true } },
-      },
+      include: { following: { select: { id: true, name: true, email: true, phone: true, address: true } } },
     });
 
-    res.json(followed.map((f) => f.following));
+    res.json(followed.map((f) => withId(f.following)));
   } catch (error) {
     console.error('Get followed farmers error:', error);
     res.status(500).json({ message: error.message });

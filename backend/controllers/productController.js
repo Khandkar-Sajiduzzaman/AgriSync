@@ -1,5 +1,16 @@
 const prisma = require('../config/db');
 
+const shapeProduct = (product) => {
+  if (!product) return product;
+  return {
+    ...product,
+    _id: product.id,
+    farmer: product.farmer
+      ? { ...product.farmer, _id: product.farmer.id }
+      : product.farmer,
+  };
+};
+
 const createProduct = async (req, res) => {
   try {
     if (req.user.role !== 'farmer') {
@@ -22,12 +33,10 @@ const createProduct = async (req, res) => {
         stock: parseInt(stock) || 0,
         images: [],
       },
-      include: {
-        farmer: { select: { name: true, phone: true, address: true } },
-      },
+      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
     });
 
-    res.status(201).json(product);
+    res.status(201).json(shapeProduct(product));
   } catch (error) {
     console.error('Create product error:', error);
     res.status(500).json({ message: error.message });
@@ -44,8 +53,8 @@ const getProducts = async (req, res) => {
     }
 
     if (category) {
-  where.legacyCategory = category;
-}
+      where.category = category;
+    }
 
     if (minPrice || maxPrice) {
       where.price = {};
@@ -55,11 +64,11 @@ const getProducts = async (req, res) => {
 
     const products = await prisma.product.findMany({
       where,
-      include: { farmer: { select: { name: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json(products);
+    res.json(products.map(shapeProduct));
   } catch (error) {
     console.error('Get products error:', error);
     res.status(500).json({ message: error.message });
@@ -70,14 +79,14 @@ const getProductById = async (req, res) => {
   try {
     const product = await prisma.product.findUnique({
       where: { id: req.params.id },
-      include: { farmer: { select: { name: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
     });
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.json(product);
+    res.json(shapeProduct(product));
   } catch (error) {
     console.error('Get product error:', error);
     res.status(500).json({ message: error.message });
@@ -108,10 +117,10 @@ const updateProduct = async (req, res) => {
     const updated = await prisma.product.update({
       where: { id: req.params.id },
       data,
-      include: { farmer: { select: { name: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
     });
 
-    res.json(updated);
+    res.json(shapeProduct(updated));
   } catch (error) {
     console.error('Update product error:', error);
     res.status(500).json({ message: error.message });
@@ -159,10 +168,10 @@ const uploadProductImage = async (req, res) => {
     const updated = await prisma.product.update({
       where: { id: req.params.id },
       data: { images: updatedImages },
-      include: { farmer: { select: { name: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
     });
 
-    res.json(updated);
+    res.json(shapeProduct(updated));
   } catch (error) {
     console.error('Upload product image error:', error);
     res.status(500).json({ message: error.message });
