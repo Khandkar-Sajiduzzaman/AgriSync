@@ -1,22 +1,11 @@
-// This is the entry point - the equivalent of starting up Apache/php-fpm,
-// except here WE write the server itself using Express.
+require('dotenv').config();
 
-const dns = require("dns");
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
 
-require("dotenv").config();
-
-const express = require("express");
-const cors = require("cors");
-
-const connectDB = require("./config/db");
-
-// Routes
-const userRoutes = require("./routes/userRoutes");
-const productRoutes = require("./routes/productRoutes");
-
-// Connect to MongoDB
-connectDB();
+const userRoutes = require('./routes/userRoutes');
+const productRoutes = require('./routes/productRoutes');
 
 const app = express();
 
@@ -25,20 +14,24 @@ app.use(cors());
 app.use(express.json());
 
 // Serve uploaded images
-app.use("/uploads", express.static("uploads"));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // API Routes
-app.use("/api/users", userRoutes);
-app.use("/api/products", productRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
 
-// Default Route
-app.get("/", (req, res) => {
-  res.send("AgriSync API is running");
+// Health check
+app.get('/', (req, res) => {
+  res.send('AgriSync API (Supabase + Prisma) is running');
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: err.message || 'Something went wrong!' });
+});
 
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
