@@ -1,0 +1,1 @@
+AgriSync: AgriSync is a web-based agri-tech marketplace that connects farmers directly with buyers, reducing the need for middlemen. The platform allows farmers to manage and sell their products while enabling buyers to browse, purchase, track orders, and verify product traceability, creating a transparent and efficient agricultural supply chain.
