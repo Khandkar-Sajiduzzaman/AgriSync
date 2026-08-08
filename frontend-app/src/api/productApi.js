@@ -26,6 +26,7 @@ export const createProduct = async (productData) => {
 
 // Get All Products
 // Get All Products (optionally filtered)
+// Get All Products (paginated + filtered)
 export const getProducts = async (filters = {}) => {
   const params = new URLSearchParams();
 
@@ -33,17 +34,17 @@ export const getProducts = async (filters = {}) => {
   if (filters.category) params.append("category", filters.category);
   if (filters.minPrice) params.append("minPrice", filters.minPrice);
   if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+  if (filters.page) params.append("page", filters.page);
+  // limit is optional; default is 12
 
   const query = params.toString();
   const response = await fetch(query ? `${API_URL}?${query}` : API_URL);
 
   const data = await response.json();
-
   if (!response.ok) {
     throw new Error(data.message || "Failed to load products");
   }
-
-  return data;
+  return data; // Now returns object with .data array
 };
 
 // Get Single Product
@@ -116,5 +117,20 @@ export const uploadProductImage = async (id, imageFile) => {
     throw new Error(data.message || "Failed to upload image");
   }
 
+  return data;
+};
+
+// Get My Products
+export const getMyProducts = async () => {
+  const response = await fetch(`${API_URL}/my`, {
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to load your products");
+  }
   return data;
 };

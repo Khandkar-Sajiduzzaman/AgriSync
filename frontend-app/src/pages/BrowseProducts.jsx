@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { getProducts } from "../api/productApi";
 import { getWishlist, toggleWishlist } from "../api/userApi";
-import { addToCart } from "../api/cartApi";
 import ProductCard from "../components/product/ProductCard";
 
 function BrowseProducts() {
@@ -14,16 +13,21 @@ function BrowseProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [wishlistIds, setWishlistIds] = useState([]);
-  const [cartMessage, setCartMessage] = useState("");
 
   const role = JSON.parse(localStorage.getItem("user"))?.role;
+
+  const extractArray = (response) => {
+    if (Array.isArray(response)) return response;
+    if (response && Array.isArray(response.data)) return response.data;
+    return [];
+  };
 
   const fetchProducts = async (filters) => {
     setLoading(true);
     setError("");
     try {
-      const data = await getProducts(filters);
-      setProducts(data);
+      const result = await getProducts(filters);
+      setProducts(extractArray(result));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -35,8 +39,9 @@ function BrowseProducts() {
     fetchProducts({});
 
     getProducts()
-      .then((all) => {
-        setCategories([...new Set(all.map((p) => p.category))]);
+      .then((result) => {
+        const all = extractArray(result);
+        setCategories([...new Set(all.map((p) => p.legacyCategory || p.category).filter(Boolean))]);
       })
       .catch(() => {});
 
@@ -71,154 +76,198 @@ function BrowseProducts() {
     }
   };
 
-  const handleAddToCart = async (productId) => {
-    try {
-      await addToCart(productId, 1);
-      setCartMessage("Added to cart!");
-      setTimeout(() => setCartMessage(""), 2000);
-    } catch (err) {
-      setError(err.message);
-    }
+  // Shared input style — visible gray border on white background
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 14px",
+    fontSize: "15px",
+    border: "2px solid #bdbdbd",
+    borderRadius: "10px",
+    backgroundColor: "#ffffff",
+    color: "#333333",
+    boxSizing: "border-box",
+    outline: "none",
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "40px auto", padding: "0 20px" }}>
-      <h1>Browse Products</h1>
+    <div className="page-container">
+      <h2 style={{ marginBottom: "24px", fontSize: "28px", color: "#1B5E20" }}>
+        Browse Products
+      </h2>
 
-      {cartMessage && (
-        <p style={{ background: "#d4edda", color: "#155724", padding: "10px", borderRadius: "5px" }}>
-          {cartMessage}
+      {/* White card container */}
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: "16px",
+          padding: "24px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          border: "1px solid #e0e0e0",
+          marginBottom: "30px",
+        }}
+      >
+        <form onSubmit={handleSubmit}>
+          {/* Search */}
+          <div style={{ marginBottom: "16px" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#333333",
+                marginBottom: "6px",
+              }}
+            >
+              Search by name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Rice, Tomatoes, Mangoes..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Filters row */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: "16px",
+              marginBottom: "20px",
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#333333",
+                  marginBottom: "6px",
+                }}
+              >
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#333333",
+                  marginBottom: "6px",
+                }}
+              >
+                Min Price (৳)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                min="0"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#333333",
+                  marginBottom: "6px",
+                }}
+              >
+                Max Price (৳)
+              </label>
+              <input
+                type="number"
+                placeholder="Any"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                min="0"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              type="submit"
+              style={{
+                backgroundColor: "#2E7D32",
+                color: "#ffffff",
+                border: "none",
+                padding: "12px 28px",
+                borderRadius: "10px",
+                fontSize: "15px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              style={{
+                backgroundColor: "#ffffff",
+                color: "#2E7D32",
+                border: "2px solid #2E7D32",
+                padding: "12px 24px",
+                borderRadius: "10px",
+                fontSize: "15px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Results */}
+      {loading && (
+        <p style={{ textAlign: "center", padding: "40px", color: "#666" }}>
+          Loading products...
+        </p>
+      )}
+      {error && (
+        <p style={{ color: "#C62828", textAlign: "center", padding: "20px" }}>
+          {error}
         </p>
       )}
 
-            <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "flex",
-          gap: "10px",
-          flexWrap: "wrap",
-          marginBottom: "25px",
-          alignItems: "center",
-          padding: "15px",
-          background: "#f8f9fa",
-          borderRadius: "10px",
-          border: "1px solid #e0e0e0",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: "1 1 200px",
-            padding: "10px 14px",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            fontSize: "14px",
-            background: "#fff",
-            outline: "none",
-          }}
-        />
-
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          style={{
-            padding: "10px 14px",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            fontSize: "14px",
-            background: "#fff",
-            outline: "none",
-            cursor: "pointer",
-          }}
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="number"
-          placeholder="Min price"
-          value={minPrice}
-          onChange={(e) => setMinPrice(e.target.value)}
-          style={{
-            width: "100px",
-            padding: "10px 14px",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            fontSize: "14px",
-            background: "#fff",
-            outline: "none",
-          }}
-          min="0"
-        />
-
-        <input
-          type="number"
-          placeholder="Max price"
-          value={maxPrice}
-          onChange={(e) => setMaxPrice(e.target.value)}
-          style={{
-            width: "100px",
-            padding: "10px 14px",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            fontSize: "14px",
-            background: "#fff",
-            outline: "none",
-          }}
-          min="0"
-        />
-
-        <button
-          type="submit"
-          style={{
-            padding: "10px 20px",
-            background: "#2e7d32",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-          }}
-        >
-          Search
-        </button>
-        <button
-          type="button"
-          onClick={handleReset}
-          style={{
-            padding: "10px 20px",
-            background: "#f5f5f5",
-            color: "#555",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          Reset
-        </button>
-      </form>
-
-      {loading && <p>Loading products...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
       {!loading && !error && products.length === 0 && (
-        <p>No products match your filters.</p>
+        <p style={{ textAlign: "center", color: "#666", padding: "40px" }}>
+          No products match your filters.
+        </p>
       )}
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
           gap: "20px",
         }}
       >
@@ -229,7 +278,6 @@ function BrowseProducts() {
             showActions={false}
             isWishlisted={wishlistIds.includes(product._id)}
             onToggleWishlist={role === "buyer" ? handleToggleWishlist : undefined}
-            onAddToCart={role === "buyer" ? handleAddToCart : undefined}
           />
         ))}
       </div>
