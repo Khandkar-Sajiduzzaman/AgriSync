@@ -36,7 +36,11 @@ function BrowseProducts() {
     // since category is a free-text field, not a fixed enum.
     getProducts()
       .then((all) => {
-        setCategories([...new Set(all.map((p) => p.category))]);
+        // Extract categories safely — handle both category and legacyCategory
+        const cats = all
+          .map((p) => p.category || p.legacyCategory)
+          .filter((c) => c && c.trim() !== '');  // Remove empty/null categories
+        setCategories([...new Set(cats)]);
       })
       .catch(() => {});
 

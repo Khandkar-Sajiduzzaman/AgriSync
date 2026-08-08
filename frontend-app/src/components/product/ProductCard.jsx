@@ -41,7 +41,7 @@ function ProductCard({
 
       <h3>{product.name}</h3>
 
-      <p><strong>Category:</strong> {product.category}</p>
+      <p><strong>Category:</strong> {product.category || product.legacyCategory || 'Uncategorized'}</p>
       <p><strong>Price:</strong> ৳{product.price}</p>
       <p><strong>Stock:</strong> {product.stock}</p>
 
