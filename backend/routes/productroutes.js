@@ -12,7 +12,7 @@ const {
 
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
-
+const { getMyProducts } = require("../controllers/productController");
 // Create a product (Farmer only)
 router.post("/", protect, createProduct);
 
@@ -35,5 +35,8 @@ router.put(
   upload.single("productImage"),
   uploadProductImage
 );
+
+// Get MY products (Farmer only)
+router.get("/my", protect, getMyProducts);
 
 module.exports = router;

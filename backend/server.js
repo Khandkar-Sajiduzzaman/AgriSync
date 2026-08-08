@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const compression = require('compression');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -12,6 +13,8 @@ const orderRoutes = require('./routes/orderRoutes');
 const app = express();
 
 // Middleware
+// Compress all HTTP responses
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 

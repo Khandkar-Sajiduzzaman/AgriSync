@@ -1,15 +1,16 @@
 const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+// This is a singleton pattern.
+// In development, hot-reloading can cause this file to run many times.
+// We store the client in globalThis so Node.js reuses it.
+const globalForPrisma = globalThis;
 
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
+const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
 
 module.exports = prisma;

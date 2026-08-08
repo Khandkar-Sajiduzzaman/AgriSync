@@ -14,12 +14,13 @@
     "db:reset": "npx prisma migrate reset --force && npm run db:seed"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "@prisma/client": "^5.16.0",
-    "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "uuid": "^10.0.0"
   },

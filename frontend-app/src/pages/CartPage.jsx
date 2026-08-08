@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getCart, updateCartQuantity, removeFromCart } from "../api/cartApi";
-import { useCart } from "../context/CartContext";
 
-function CartPage() {
+function Cart() {
   const [cart, setCart] = useState({ items: [], summary: { totalItems: 0, totalPrice: 0 } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { refreshCart } = useCart();
+
   const navigate = useNavigate();
 
   const loadCart = async () => {
@@ -28,9 +27,8 @@ function CartPage() {
 
   const handleQuantityChange = async (productId, newQty) => {
     try {
-      await updateCartQuantity(productId, parseInt(newQty));
-      await loadCart();
-      refreshCart();
+      await updateCartQuantity(productId, newQty);
+      loadCart();
     } catch (err) {
       setError(err.message);
     }
@@ -39,42 +37,101 @@ function CartPage() {
   const handleRemove = async (productId) => {
     try {
       await removeFromCart(productId);
-      await loadCart();
-      refreshCart();
+      setCart((prev) => ({
+        ...prev,
+        items: prev.items.filter((item) => item.product._id !== productId),
+        summary: {
+          totalItems: prev.summary.totalItems - (prev.items.find((i) => i.product._id === productId)?.quantity || 0),
+          totalPrice: prev.summary.totalPrice - (prev.items.find((i) => i.product._id === productId)?.itemTotal || 0),
+        },
+      }));
     } catch (err) {
       setError(err.message);
     }
   };
 
-  if (loading) return <p style={{ textAlign: "center", marginTop: "40px" }}>Loading cart...</p>;
+  // Shared input style — matches Browse Products exactly
+  const inputStyle = {
+    width: "60px",
+    padding: "8px 10px",
+    fontSize: "15px",
+    border: "2px solid #bdbdbd",
+    borderRadius: "8px",
+    backgroundColor: "#ffffff",
+    color: "#333333",
+    textAlign: "center",
+    boxSizing: "border-box",
+    outline: "none",
+  };
+
+  if (loading) {
+    return (
+      <div className="page-container">
+        <p style={{ textAlign: "center", padding: "40px", color: "#666" }}>Loading cart...</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: "900px", margin: "40px auto", padding: "0 20px" }}>
-      <h1>🛒 Shopping Cart</h1>
+    <div className="page-container">
+      <h2 style={{ marginBottom: "24px", fontSize: "28px", color: "#1B5E20" }}>
+        Shopping Cart
+      </h2>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && (
+        <p style={{ color: "#C62828", textAlign: "center", padding: "16px", marginBottom: "16px" }}>
+          {error}
+        </p>
+      )}
 
       {cart.items.length === 0 ? (
-        <div style={{ textAlign: "center", marginTop: "60px" }}>
-          <p>Your cart is empty.</p>
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "16px",
+            padding: "50px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+            border: "1px solid #e0e0e0",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ fontSize: "18px", color: "#666", marginBottom: "20px" }}>
+            Your cart is empty.
+          </p>
           <Link to="/products/browse">
-            <button style={{ marginTop: "15px" }}>Browse Products</button>
+            <button
+              style={{
+                backgroundColor: "#2E7D32",
+                color: "#ffffff",
+                border: "none",
+                padding: "12px 28px",
+                borderRadius: "10px",
+                fontSize: "15px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Browse Products
+            </button>
           </Link>
         </div>
       ) : (
         <>
-          <div style={{ marginTop: "20px" }}>
+          {/* Cart Items */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "24px" }}>
             {cart.items.map((item) => (
               <div
-                key={item.id}
+                key={item.product._id}
                 style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "16px",
+                  padding: "20px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                  border: "1px solid #e0e0e0",
                   display: "flex",
-                  gap: "20px",
                   alignItems: "center",
-                  border: "1px solid #ddd",
-                  borderRadius: "10px",
-                  padding: "15px",
-                  marginBottom: "15px",
+                  gap: "20px",
+                  flexWrap: "wrap",
                 }}
               >
                 {/* Product Image */}
@@ -82,87 +139,153 @@ function CartPage() {
                   <img
                     src={`http://localhost:5000${item.product.images[0]}`}
                     alt={item.product.name}
-                    style={{ width: "100px", height: "80px", objectFit: "cover", borderRadius: "8px" }}
+                    style={{
+                      width: "80px",
+                      height: "80px",
+                      objectFit: "cover",
+                      borderRadius: "10px",
+                      border: "1px solid #e0e0e0",
+                    }}
                   />
                 ) : (
-                  <div style={{ width: "100px", height: "80px", background: "#eee", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div
+                    style={{
+                      width: "80px",
+                      height: "80px",
+                      borderRadius: "10px",
+                      background: "#f5f5f5",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#999",
+                      fontSize: "12px",
+                    }}
+                  >
                     No Image
                   </div>
                 )}
 
                 {/* Product Info */}
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: "0 0 5px 0" }}>{item.product.name}</h3>
-                  <p style={{ margin: "0", color: "#666" }}>
-                    Farmer: {item.product.farmer?.name} | ৳{item.product.price} / {item.product.unit}
+                <div style={{ flex: "1", minWidth: "180px" }}>
+                  <h3 style={{ margin: "0 0 6px", fontSize: "17px", color: "#333" }}>
+                    {item.product.name}
+                  </h3>
+                  <p style={{ margin: "0 0 4px", fontSize: "14px", color: "#666" }}>
+                    Farmer: {item.product.farmer?.name}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "14px", color: "#666" }}>
+                    ৳{item.product.price} / {item.product.unit || "piece"}
                   </p>
                 </div>
 
-                {/* Quantity Controls */}
+                {/* Quantity */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <label>Qty:</label>
+                  <label
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#333",
+                    }}
+                  >
+                    Qty:
+                  </label>
                   <input
                     type="number"
                     min="1"
-                    max={item.product.stock + item.quantity}
                     value={item.quantity}
-                    onChange={(e) => handleQuantityChange(item.product._id, e.target.value)}
-                    style={{ width: "50px", padding: "5px" }}
+                    onChange={(e) => handleQuantityChange(item.product._id, parseInt(e.target.value) || 1)}
+                    style={inputStyle}
                   />
-                  <span>{item.product.unit}</span>
                 </div>
 
                 {/* Item Total */}
-                <div style={{ minWidth: "100px", textAlign: "right" }}>
-                  <p style={{ margin: "0", fontWeight: "bold" }}>৳{item.itemTotal}</p>
+                <div style={{ minWidth: "80px", textAlign: "right" }}>
+                  <p style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#1B5E20" }}>
+                    ৳{item.itemTotal}
+                  </p>
                 </div>
 
                 {/* Remove Button */}
                 <button
                   onClick={() => handleRemove(item.product._id)}
                   style={{
-                    background: "#e74c3c",
-                    color: "white",
+                    backgroundColor: "#C62828",
+                    color: "#ffffff",
                     border: "none",
-                    padding: "6px 12px",
-                    borderRadius: "5px",
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "8px",
+                    fontSize: "18px",
                     cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
+                  title="Remove item"
                 >
-                  ✕
+                  ×
                 </button>
               </div>
             ))}
           </div>
 
-          {/* Cart Summary */}
+          {/* Cart Summary Card */}
           <div
             style={{
-              border: "2px solid #27ae60",
-              borderRadius: "10px",
-              padding: "20px",
-              marginTop: "20px",
-              background: "#f8fff8",
+              backgroundColor: "#ffffff",
+              borderRadius: "16px",
+              padding: "24px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              border: "1px solid #e0e0e0",
+              maxWidth: "400px",
+              marginLeft: "auto",
             }}
           >
-            <h3 style={{ marginTop: 0 }}>Cart Summary</h3>
-            <p><strong>Total Items:</strong> {cart.summary.totalItems}</p>
-            <p style={{ fontSize: "20px" }}>
-              <strong>Total Price:</strong> ৳{cart.summary.totalPrice}
-            </p>
+            <h3 style={{ margin: "0 0 16px", fontSize: "18px", color: "#1B5E20" }}>
+              Cart Summary
+            </h3>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-              <Link to="/products/browse">
-                <button style={{ background: "#95a5a6" }}>Continue Shopping</button>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+              <span style={{ color: "#666", fontSize: "15px" }}>Total Items:</span>
+              <span style={{ fontWeight: "600", color: "#333" }}>{cart.summary.totalItems}</span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+              <span style={{ color: "#666", fontSize: "15px" }}>Total Price:</span>
+              <span style={{ fontWeight: "700", fontSize: "18px", color: "#1B5E20" }}>
+                ৳{cart.summary.totalPrice}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <Link to="/products/browse" style={{ textDecoration: "none" }}>
+                <button
+                  style={{
+                    backgroundColor: "#ffffff",
+                    color: "#2E7D32",
+                    border: "2px solid #2E7D32",
+                    padding: "12px 20px",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  Continue Shopping
+                </button>
               </Link>
 
               <button
                 onClick={() => navigate("/checkout")}
                 style={{
-                  background: "#27ae60",
-                  color: "white",
-                  padding: "10px 30px",
-                  fontSize: "16px",
+                  backgroundColor: "#2E7D32",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "12px 24px",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
                 }}
               >
                 Proceed to Checkout →
@@ -175,4 +298,4 @@ function CartPage() {
   );
 }
 
-export default CartPage;
+export default Cart;

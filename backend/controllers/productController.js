@@ -48,7 +48,7 @@ const createProduct = async (req, res) => {
 
 const getProducts = async (req, res) => {
   try {
-    const { search, category, minPrice, maxPrice } = req.query;
+    const { search, category, minPrice, maxPrice, page, limit } = req.query;
     const where = {};
 
     if (search) {
@@ -56,7 +56,7 @@ const getProducts = async (req, res) => {
     }
 
     if (category) {
-      where.legacyCategory = category; // <-- FIX: schema field is legacyCategory
+      where.legacyCategory = category;
     }
 
     if (minPrice || maxPrice) {
@@ -65,9 +65,39 @@ const getProducts = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
+    // If page is provided, return paginated format
+    if (page) {
+      const skip = (parseInt(page) - 1) * parseInt(limit || 12);
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: {
+            farmer: {
+              select: { id: true, name: true, email: true, phone: true, address: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: parseInt(limit || 12),
+        }),
+        prisma.product.count({ where })
+      ]);
+      return res.json({
+        data: products.map(shapeProduct),
+        total,
+        page: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit || 12)),
+      });
+    }
+
+    // Otherwise, return plain array (backward compatible)
     const products = await prisma.product.findMany({
       where,
-      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
+      include: {
+        farmer: {
+          select: { id: true, name: true, email: true, phone: true, address: true }
+        }
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -181,6 +211,26 @@ const uploadProductImage = async (req, res) => {
   }
 };
 
+const getMyProducts = async (req, res) => {
+  try {
+    // req.user is set by your authMiddleware after verifying the JWT token
+    const products = await prisma.product.findMany({
+      where: { farmerId: req.user.id },
+      include: {
+        farmer: {
+          select: { id: true, name: true, email: true, phone: true, address: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(products.map(shapeProduct));
+  } catch (error) {
+    console.error('Get my products error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
@@ -188,4 +238,5 @@ module.exports = {
   updateProduct,
   deleteProduct,
   uploadProductImage,
+  getMyProducts,
 };
