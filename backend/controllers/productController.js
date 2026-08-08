@@ -5,6 +5,7 @@ const shapeProduct = (product) => {
   return {
     ...product,
     _id: product.id,
+    category: product.legacyCategory,      // Map legacyCategory to category for frontend
     farmer: product.farmer
       ? { ...product.farmer, _id: product.farmer.id }
       : product.farmer,
@@ -28,7 +29,7 @@ const createProduct = async (req, res) => {
         farmerId: req.user.id,
         name,
         description: description || '',
-        category,
+        legacyCategory: category,          // Save to legacyCategory field
         price: parseFloat(price),
         stock: parseInt(stock) || 0,
         images: [],
@@ -53,7 +54,7 @@ const getProducts = async (req, res) => {
     }
 
     if (category) {
-      where.category = category;
+      where.legacyCategory = category;     // Filter by legacyCategory field
     }
 
     if (minPrice || maxPrice) {
@@ -110,7 +111,7 @@ const updateProduct = async (req, res) => {
 
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
-    if (category !== undefined) data.category = category;
+    if (category !== undefined) data.legacyCategory = category;  // Update legacyCategory
     if (price !== undefined) data.price = parseFloat(price);
     if (stock !== undefined) data.stock = parseInt(stock);
 
