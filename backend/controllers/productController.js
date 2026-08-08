@@ -1,11 +1,13 @@
 const prisma = require('../config/db');
 
+// Helper: convert Prisma Decimal to plain number + add _id alias for frontend compatibility
 const shapeProduct = (product) => {
   if (!product) return product;
   return {
     ...product,
     _id: product.id,
-    category: product.legacyCategory,      // Map legacyCategory to category for frontend
+    category: product.legacyCategory, // expose legacyCategory as category for frontend
+    price: product.price?.toNumber ? product.price.toNumber() : product.price,
     farmer: product.farmer
       ? { ...product.farmer, _id: product.farmer.id }
       : product.farmer,
@@ -29,7 +31,7 @@ const createProduct = async (req, res) => {
         farmerId: req.user.id,
         name,
         description: description || '',
-        legacyCategory: category,          // Save to legacyCategory field
+        legacyCategory: category, // <-- FIX: schema field is legacyCategory
         price: parseFloat(price),
         stock: parseInt(stock) || 0,
         images: [],
@@ -54,7 +56,7 @@ const getProducts = async (req, res) => {
     }
 
     if (category) {
-      where.legacyCategory = category;     // Filter by legacyCategory field
+      where.legacyCategory = category; // <-- FIX: schema field is legacyCategory
     }
 
     if (minPrice || maxPrice) {
@@ -111,7 +113,7 @@ const updateProduct = async (req, res) => {
 
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
-    if (category !== undefined) data.legacyCategory = category;  // Update legacyCategory
+    if (category !== undefined) data.legacyCategory = category; // <-- FIX
     if (price !== undefined) data.price = parseFloat(price);
     if (stock !== undefined) data.stock = parseInt(stock);
 

@@ -488,7 +488,8 @@ async function main() {
       totalAmount += itemTotal;
       orderProducts.push({ product, qty, unitPrice, itemTotal });
     }
-
+    const deliveryFee = randInt(20, 100);
+    const subtotal = parseFloat(totalAmount.toFixed(2));
     const order = await prisma.order.create({
       data: {
         orderNumber: `AGR-2026${String(randInt(1, 12)).padStart(2, "0")}${String(randInt(1, 28)).padStart(2, "0")}-${String(i + 1).padStart(4, "0")}`,
@@ -499,6 +500,9 @@ async function main() {
         paymentMethod: pick(PAYMENT_METHODS),
         totalAmount: parseFloat(totalAmount.toFixed(2)),
         deliveryFee: randInt(20, 100),
+        subtotal,
+        totalAmount: subtotal + deliveryFee,
+        deliveryFee,
         deliveryAddress: `${randInt(1, 200)} ${pick(["Road", "Street", "Lane"])} ${randInt(1, 20)}, ${buyer.district}, ${buyer.division}`,
         deliveryNotes: pick(["Call before delivery", "Leave at gate", "Ring doorbell", "Contact via phone", ""]),
         deliveryManId: status !== "pending" && status !== "cancelled" ? dm.id : null,
@@ -510,6 +514,8 @@ async function main() {
             quantity: op.qty,
             unitPrice: op.unitPrice,
             total: op.itemTotal,
+            unit: op.product.unit,
+            productName: op.product.name,
           })),
         },
         statusHistory: {
