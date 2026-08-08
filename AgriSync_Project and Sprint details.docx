@@ -1,0 +1,49 @@
+AgriSync: AgriSync is a web-based agri-tech marketplace that connects farmers directly with buyers, reducing the need for middlemen. The platform allows farmers to manage and sell their products while enabling buyers to browse, purchase, track orders, and verify product traceability, creating a transparent and efficient agricultural supply chain.
+Functional Requirements
+Users have to log in or sign up for an account with password recovery options. There will be Four types of accounts: Buyer, Farmer, Delivery Man, and Administrator.
+There should be a dashboard where buyers can view their order history, wishlist, and favorite farmers, while farmers can view sales summaries and inventory status. Delivery Man can see orders and deliver them.
+Users can update their profile information and manage account settings.
+Farmers can add, edit, remove, and upload images for their product listings.
+Users can browse, search, and filter products based on category, price, availability, ratings, and location.
+The system will recommend products based on buyers' previous purchases and highly rated products.
+Buyers can save products to a wishlist and follow their favorite farmers.
+Buyers can place orders for available products.
+Farmers can view customer orders and update their order status throughout the processing cycle.
+The system will display real-time order tracking and delivery progress for customers.
+The system will automatically maintain product inventory and update stock levels after every successful order.
+Farmers can define and manage the delivery zones where they provide delivery services.
+Buyers can rate and review purchased products, and products can be sorted based on ratings.
+Buyers and farmers can communicate through an in-app chat system.
+Buyers can send price negotiation offers, and farmers can accept, reject, or counter those offers.
+Users can compare products based on price, ratings, nutritional values, availability, and product origin.
+The system will display product traceability information, including the origin and production details of products.
+The system will notify users about promotional offers, discounts, and special deals on products.
+Administrators can manage user accounts, approve product listings, remove policy-violating content, generate sales reports, and provide farmers with sales analytics and market price estimations.
+The Delivery Man will deliver the items from the Farmers to the Customer directly and they will be tracked live on our app using a map.
+ 
+Sprint 1 – User & Marketplace
+User Profile Management – The system should be able to let farmers and buyers create, update, and manage their profile information.
+Product Management – The system should be able to let farmers add, edit, remove, and upload images for their product listings.
+Browse & Search Products – The system should be able to display products and allow buyers to search and filter listings.
+Smart Recommendations – The system should be able to recommend products based on a buyer's previous purchases and highly rated products.
+Wishlist & Favorite Farmers – The system should be able to let buyers save products and follow their preferred farmers.
+Sprint 2 – Orders & Inventory
+Place Orders – The system should be able to let buyers place orders for available products.
+Order Processing – The system should be able to let farmers view and update the status of customer orders.
+Order Tracking – The system should be able to display the current status and delivery progress of customer orders. 
+Inventory Management – The system should be able to maintain product stock and update inventory after orders.
+Delivery Zone Management – The system should be able to let farmers define the areas where they provide delivery.
+Sprint 3 – Communication & Product Information
+Product Reviews & Ratings Fraud Detection– The system should be able to let buyers rate and review purchased products, and sort products based on ratings.
+Buyer–Farmer Chat – The system should be able to allow buyers and farmers to communicate through an in-app chat system.
+Price Negotiation – The system should be able to let buyers send price offers and farmers respond to them.
+Product Comparison – The system should be able to let buyers compare products based on price, ratings, nutritional values, and availability. .
+Product Traceability – The system should be able to store and display the origin and production details of products.
+Sprint 4 – Business & Administration
+Offers & Promotional Notifications – The system should be able to display active discounts and promotional offers as notifications on product pages.
+Sales Analytics Dashboard – The system should be able to show farmers summaries of sales and revenue.
+User & Product Management (Admin) – The system should be able to let administrators manage user accounts, approve product listings, and remove content that violates platform policies. 
+Market Price Estimation & Negotiation – The system should be able to estimate the market value of products based on recent sales and allow buyers and farmers to negotiate prices through offers. 
+Sales Report Generation – The system should be able to generate sales reports based on order data.
+
+
