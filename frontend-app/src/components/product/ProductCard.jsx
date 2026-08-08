@@ -31,7 +31,6 @@ function ProductCard({
     }
   };
 
-  // Shared button style
   const btnStyle = {
     padding: "8px 14px",
     borderRadius: "6px",
@@ -80,14 +79,23 @@ function ProductCard({
         </div>
       )}
 
-      <h3 style={{ margin: "12px 0 8px 0", fontSize: "18px" }}>{product.name}</h3>
+      <h3 style={{ margin: "12px 0 4px 0", fontSize: "18px" }}>{product.name}</h3>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+        <span style={{ color: "#fbbf24", fontSize: "14px" }}>
+          {"★".repeat(Math.round(product.averageRating || 0))}
+          {"☆".repeat(5 - Math.round(product.averageRating || 0))}
+        </span>
+        <span style={{ fontSize: "12px", color: "#6b7280" }}>
+          {product.averageRating?.toFixed(1) || "0.0"} ({product.totalReviews || 0})
+        </span>
+      </div>
 
       <p style={{ margin: "4px 0", color: "#555" }}><strong>Category:</strong> {product.category || product.legacyCategory}</p>
       <p style={{ margin: "4px 0", color: "#555" }}><strong>Price:</strong> ৳{product.price}</p>
       <p style={{ margin: "4px 0", color: "#555" }}><strong>Stock:</strong> {product.stock} {product.unit}</p>
 
       <div style={{ display: "flex", gap: "8px", marginTop: "15px", flexWrap: "wrap", alignItems: "center" }}>
-        {/* VIEW BUTTON — styled like a real button */}
         <Link
           to={`/products/${product._id}`}
           style={{

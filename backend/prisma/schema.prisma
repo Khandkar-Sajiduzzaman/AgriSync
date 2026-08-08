@@ -603,9 +603,9 @@ model Review {
   order           Order   @relation(fields: [orderId], references: [id])
 
   // --- Fraud detection ---
-  isVerifiedPurchase Boolean @default(false) // True if buyer actually bought this product
-  isFlagged          Boolean @default(false) // Admin or system flagged as suspicious
-  fraudScore         Float?  // 0–1, calculated by system
+  isVerifiedPurchase Boolean @default(false)
+  isFlagged          Boolean @default(false)
+  fraudScore         Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -614,6 +614,7 @@ model Review {
   @@index([authorId])
   @@index([orderId])
   @@index([createdAt])
+  @@unique([authorId, productId, orderId])  // <-- ADD THIS LINE (NEW!)
 }
 
 // =============================================================================
