@@ -1,182 +1,150 @@
-// Redesigned login/signup page - split layout with a branded green
-// panel (farmer silhouette + wordmark + tagline) and a cream form panel.
-
-import { useState } from "react";
-import { registerUser, loginUser } from "../../api/userApi";
-import "./AuthForm.css";
+import { useState } from "react"
+import { registerUser, loginUser } from "../../api/userApi"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { toast } from "sonner"
+import { Loader2 } from "lucide-react"
 
 function AuthForm({ onAuthSuccess }) {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login")
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
     role: "buyer",
-  });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  })
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  const handleRoleChange = (value) => {
+    setForm({ ...form, role: value })
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+    e.preventDefault()
+    setError("")
+    setLoading(true)
 
     try {
       const data =
         mode === "register"
           ? await registerUser(form)
-          : await loginUser(form);
+          : await loginUser(form)
 
-      // Save authentication data
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data));
-
-      onAuthSuccess(data);
+      localStorage.setItem("token", data.token)
+      localStorage.setItem("user", JSON.stringify(data))
+      onAuthSuccess(data)
+      toast.success(mode === "register" ? "Account created!" : "Welcome back!")
     } catch (err) {
-      setError(err.message);
+      setError(err.message)
+      toast.error(err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="auth-screen">
+    <div className="min-h-screen flex flex-col md:flex-row">
       {/* LEFT BRAND PANEL */}
-      <div className="auth-brand">
-        <svg
-          className="auth-brand__mark"
-          viewBox="0 0 220 220"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          {/* rising sun */}
-          <circle
-            cx="60"
-            cy="55"
-            r="34"
-            fill="var(--agri-gold)"
-            opacity="0.9"
-          />
+      <div className="relative flex-1 min-w-[320px] bg-gradient-to-br from-agri-900 via-agri-800 to-agri-700 text-white flex flex-col justify-between p-10 md:p-12 overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -top-20 -right-20 w-64 h-64 bg-agri-600/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-agri-500/10 rounded-full blur-3xl" />
 
-          {/* wheat stalks */}
-          <g
-            stroke="var(--agri-gold)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            opacity="0.55"
-          >
-            <path d="M20 150 Q15 110 30 75" fill="none" />
-            <path d="M40 158 Q38 115 50 80" fill="none" />
-            <path d="M95 158 Q100 115 92 80" fill="none" />
-            <path d="M112 152 Q120 112 108 78" fill="none" />
-          </g>
+        <div className="relative z-10">
+          {/* Logo icon */}
+          <div className="w-16 h-16 bg-agri-700/50 rounded-2xl flex items-center justify-center mb-6 border border-agri-600/30">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="w-8 h-8 text-agri-300"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <path d="M9 9h.01M15 9h.01" />
+            </svg>
+          </div>
+        </div>
 
-          {/* hat */}
-          <path
-            d="M35 96 Q66 68 97 96 Q90 92 66 92 Q42 92 35 96 Z"
-            fill="var(--agri-cream)"
-          />
-          <ellipse cx="66" cy="97" rx="16" ry="5" fill="var(--agri-cream)" />
-
-          {/* head */}
-          <circle cx="66" cy="104" r="10" fill="var(--agri-cream)" />
-
-          {/* body */}
-          <path
-            d="M50 122 Q66 112 82 122 L88 168 Q66 178 44 168 Z"
-            fill="var(--agri-cream)"
-          />
-
-          {/* arm */}
-          <path
-            d="M82 128 Q100 132 104 150"
-            stroke="var(--agri-cream)"
-            strokeWidth="7"
-            fill="none"
-            strokeLinecap="round"
-          />
-
-          {/* basket */}
-          <ellipse
-            cx="107"
-            cy="156"
-            rx="13"
-            ry="10"
-            fill="var(--agri-cream)"
-          />
-
-          <path
-            d="M97 154 L117 154 M99 160 L115 160"
-            stroke="var(--agri-forest)"
-            strokeWidth="1.5"
-            opacity="0.4"
-          />
-        </svg>
-
-        <div className="auth-brand__text">
-          <span className="auth-brand__wordmark">AgriSync</span>
-
-          <p className="auth-brand__tagline">
+        <div className="relative z-10 max-w-sm">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">
+            AgriSync
+          </h1>
+          <p className="text-lg text-agri-200/80 leading-relaxed">
             Your ticket to a healthy ecosystem of nutrition and affordability.
           </p>
         </div>
 
-        <div className="auth-brand__field-line" aria-hidden="true"></div>
+        {/* Field lines decoration */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 opacity-10">
+          <div className="h-full w-full" style={{
+            background: "repeating-linear-gradient(100deg, #e8b94a 0px, #e8b94a 2px, transparent 2px, transparent 26px)"
+          }} />
+        </div>
       </div>
 
       {/* RIGHT FORM PANEL */}
-      <div className="auth-formside">
-        <div className="auth-card">
-          <h2 className="auth-card__heading">
-            {mode === "register"
-              ? "Create your profile"
-              : "Welcome back"}
-          </h2>
+      <div className="flex-1 bg-cream-50 flex items-center justify-center p-6 md:p-12">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center md:text-left">
+            <h2 className="text-2xl font-bold text-agri-900">
+              {mode === "register" ? "Create your profile" : "Welcome back"}
+            </h2>
+            <p className="text-stone-500 mt-1 text-sm">
+              {mode === "register"
+                ? "Join as a farmer or a buyer to get started."
+                : "Log in to your AgriSync account."}
+            </p>
+          </div>
 
-          <p className="auth-card__subheading">
-            {mode === "register"
-              ? "Join as a farmer or a buyer to get started."
-              : "Log in to your AgriSync account."}
-          </p>
-
-          <form onSubmit={handleSubmit} className="auth-form">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "register" && (
               <>
-                <label className="auth-label">
-                  Full name
-                  <input
-                    className="auth-input"
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full name</Label>
+                  <Input
+                    id="name"
                     name="name"
                     placeholder="Enter your name"
                     value={form.name}
                     onChange={handleChange}
                     required
                   />
-                </label>
+                </div>
 
-                <label className="auth-label">
-                  I am a
-                  <select
-                    className="auth-input"
-                    name="role"
-                    value={form.role}
-                    onChange={handleChange}
-                  >
-                    <option value="buyer">Buyer</option>
-                    <option value="farmer">Farmer</option>
-                  </select>
-                </label>
+                <div className="space-y-2">
+                  <Label htmlFor="role">I am a</Label>
+                  <Select value={form.role} onValueChange={handleRoleChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="buyer">Buyer</SelectItem>
+                      <SelectItem value="farmer">Farmer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             )}
 
-            <label className="auth-label">
-              Email
-              <input
-                className="auth-input"
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
                 name="email"
                 type="email"
                 placeholder="you@example.com"
@@ -184,12 +152,12 @@ function AuthForm({ onAuthSuccess }) {
                 onChange={handleChange}
                 required
               />
-            </label>
+            </div>
 
-            <label className="auth-label">
-              Password
-              <input
-                className="auth-input"
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
                 name="password"
                 type="password"
                 placeholder="••••••••"
@@ -197,37 +165,47 @@ function AuthForm({ onAuthSuccess }) {
                 onChange={handleChange}
                 required
               />
-            </label>
+            </div>
 
-            {error && <p className="auth-error">{error}</p>}
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                {error}
+              </p>
+            )}
 
-            <button
-              className="auth-submit"
+            <Button
               type="submit"
+              className="w-full bg-agri-800 hover:bg-agri-900 text-white"
               disabled={loading}
             >
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {loading
                 ? "Please wait..."
                 : mode === "register"
                 ? "Sign up"
                 : "Log in"}
-            </button>
+            </Button>
           </form>
 
-          <button
-            className="auth-switch"
-            onClick={() =>
-              setMode(mode === "register" ? "login" : "register")
-            }
-          >
+          <p className="text-center text-sm text-stone-500">
             {mode === "register"
-              ? "Already have an account? Log in"
-              : "Need an account? Sign up"}
-          </button>
+              ? "Already have an account?"
+              : "Need an account?"}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "register" ? "login" : "register")
+                setError("")
+              }}
+              className="text-agri-700 hover:text-agri-900 font-medium underline underline-offset-2"
+            >
+              {mode === "register" ? "Log in" : "Sign up"}
+            </button>
+          </p>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default AuthForm;
+export default AuthForm

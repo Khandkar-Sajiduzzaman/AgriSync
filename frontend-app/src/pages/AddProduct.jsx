@@ -1,61 +1,36 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-
-import ProductForm from "../components/product/ProductForm";
-import {
-  createProduct,
-  uploadProductImage,
-} from "../api/productApi";
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
+import ProductForm from "../components/product/ProductForm"
+import { createProduct, uploadProductImage } from "../api/productApi"
+import { toast } from "sonner"
 
 function AddProduct() {
-  const navigate = useNavigate();
-
-  const [status, setStatus] = useState("");
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(false)
 
   const handleAddProduct = async (formData, image) => {
+    setLoading(true)
     try {
-      // Create the product first
-      const product = await createProduct(formData);
-
-      // If an image was selected, upload it
+      const product = await createProduct(formData)
       if (image && product._id) {
-        await uploadProductImage(product._id, image);
+        await uploadProductImage(product._id, image)
       }
-
-      setStatus("✅ Product added successfully!");
-
-      // Wait a moment before going to My Products
-      setTimeout(() => {
-        navigate("/products/my");
-      }, 1000);
-
+      toast.success("Product added successfully!")
+      setTimeout(() => navigate("/products/my"), 1000)
     } catch (error) {
-      setStatus("❌ Failed to add product.");
-      console.error(error);
+      toast.error("Failed to add product.")
+      console.error(error)
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div
-      style={{
-        maxWidth: "600px",
-        margin: "40px auto",
-      }}
-    >
-      <h2>Add New Product</h2>
-
-      <ProductForm
-        onSubmit={handleAddProduct}
-        buttonText="Add Product"
-      />
-
-      {status && (
-        <p style={{ marginTop: "20px" }}>
-          {status}
-        </p>
-      )}
+    <div className="max-w-2xl mx-auto space-y-6">
+      <h1 className="text-3xl font-bold text-agri-800">Add New Product</h1>
+      <ProductForm onSubmit={handleAddProduct} buttonText={loading ? "Adding..." : "Add Product"} />
     </div>
-  );
+  )
 }
 
-export default AddProduct;
+export default AddProduct
