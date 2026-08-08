@@ -452,7 +452,7 @@ model CartItem {
 
 model Order {
   id              String        @id @default(uuid())
-  orderNumber     String        @unique // Human-readable, e.g., AGR-20260807-XXXX
+  orderNumber     String        @unique
 
   buyerId         String
   buyer           User          @relation("OrderBuyer", fields: [buyerId], references: [id])
@@ -463,12 +463,17 @@ model Order {
   paymentStatus   PaymentStatus @default(pending)
   paymentMethod   PaymentMethod @default(cash_on_delivery)
 
+  subtotal        Decimal       @db.Decimal(12, 2)  // NEW: items total before fees
   totalAmount     Decimal       @db.Decimal(12, 2)
   deliveryFee     Decimal?      @db.Decimal(12, 2)
   discountAmount  Decimal?      @db.Decimal(12, 2)
 
   deliveryAddress String
   deliveryNotes   String?
+
+  // NEW FIELDS — for cancelled order tracking
+  cancelledAt     DateTime?
+  cancelledBy     String?
 
   // Delivery assignment
   deliveryManId   String?
@@ -480,7 +485,6 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relations ---
   items           OrderItem[]
   statusHistory   OrderStatusHistory[]
   reviews         Review[]
@@ -495,15 +499,19 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
-  orderId   String
-  productId String
-  quantity  Int
-  unitPrice Decimal @db.Decimal(12, 2) // Price snapshot at time of order
-  total     Decimal @db.Decimal(12, 2)
+  id          String   @id @default(uuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  // NEW FIELDS — store snapshot at time of purchase
+  unit        UnitType @default(kg)
+  productName String?  // Product name at order time (in case renamed later)
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])

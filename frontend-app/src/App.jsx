@@ -13,6 +13,12 @@ import ProductDetails from "./pages/ProductDetails";
 import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
 
+// NEW PAGES for Place Order feature
+import CartPage from "./pages/CartPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import OrdersPage from "./pages/OrdersPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState(null);
@@ -20,7 +26,6 @@ function App() {
   useEffect(() => {
     if (localStorage.getItem("token")) {
       setLoggedIn(true);
-
       const user = JSON.parse(localStorage.getItem("user"));
       setRole(user?.role);
     }
@@ -36,14 +41,11 @@ function App() {
   const handleAuthSuccess = (data) => {
     setLoggedIn(true);
     setRole(data?.role);
-
-    // Save user for future refreshes
     if (data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
     }
   };
 
-  // Show Login/Register if not logged in
   if (!loggedIn) {
     return <AuthForm onAuthSuccess={handleAuthSuccess} />;
   }
@@ -63,40 +65,46 @@ function App() {
         {/* Farmer Only */}
         <Route
           path="/products/add"
-          element={
-            role === "farmer" ? (
-              <AddProduct />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          }
+          element={role === "farmer" ? <AddProduct /> : <Navigate to="/" replace />}
         />
 
         {/* Farmer Products */}
         <Route path="/products/my" element={<MyProducts />} />
 
         {/* Edit Product */}
-        <Route
-          path="/products/:id/edit"
-          element={<EditProduct />}
-        />
+        <Route path="/products/:id/edit" element={<EditProduct />} />
 
         {/* Product Details */}
-        <Route
-          path="/products/:id"
-          element={<ProductDetails />}
-        />
+        <Route path="/products/:id" element={<ProductDetails />} />
 
         {/* Buyer Wishlist */}
         <Route
           path="/wishlist"
-          element={
-            role === "buyer" ? (
-              <Wishlist />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          }
+          element={role === "buyer" ? <Wishlist /> : <Navigate to="/" replace />}
+        />
+
+        {/* NEW: Cart (Buyer only) */}
+        <Route
+          path="/cart"
+          element={role === "buyer" ? <CartPage /> : <Navigate to="/" replace />}
+        />
+
+        {/* NEW: Checkout (Buyer only) */}
+        <Route
+          path="/checkout"
+          element={role === "buyer" ? <CheckoutPage /> : <Navigate to="/" replace />}
+        />
+
+        {/* NEW: Orders (Buyer + Farmer) */}
+        <Route
+          path="/orders"
+          element={role === "buyer" || role === "farmer" ? <OrdersPage /> : <Navigate to="/" replace />}
+        />
+
+        {/* NEW: Order Detail (Buyer + Farmer) */}
+        <Route
+          path="/orders/:id"
+          element={role === "buyer" || role === "farmer" ? <OrderDetailPage /> : <Navigate to="/" replace />}
         />
       </Route>
 
