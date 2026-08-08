@@ -132,7 +132,7 @@ async function run() {
   const s1 = await req("/api/products?search=rice");
   ok("Search 'rice' 200", s1.ok && Array.isArray(s1.data), `Count: ${s1.data?.length}`);
 
-  const s2 = await req("/api/products?category=Fresh%20Vegetables");
+  const s2 = await req("/api/products?categoryId?=Fresh%20Vegetables");
   ok("Filter category 200", s2.ok && Array.isArray(s2.data), `Count: ${s2.data?.length}`);
 
   const s3 = await req("/api/products?minPrice=50&maxPrice=200");
