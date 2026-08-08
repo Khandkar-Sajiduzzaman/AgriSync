@@ -1,73 +1,58 @@
-import { useEffect, useState } from "react";
-import { getProducts, deleteProduct } from "../api/productApi";
-import ProductCard from "../components/product/ProductCard";
+import { useEffect, useState } from "react"
+import { getProducts, deleteProduct } from "../api/productApi"
+import ProductCard from "../components/product/ProductCard"
+import { toast } from "sonner"
 
 function MyProducts() {
-  const [products, setProducts] = useState([]);
-  const [status, setStatus] = useState("");
-
-  const user = JSON.parse(localStorage.getItem("user"));
+  const [products, setProducts] = useState([])
+  const user = JSON.parse(localStorage.getItem("user"))
 
   useEffect(() => {
-    loadProducts();
-  }, []);
+    loadProducts()
+  }, [])
 
   const loadProducts = async () => {
     try {
-      const data = await getProducts();
-
-      // Only show products belonging to the logged-in farmer
+      const data = await getProducts()
       const myProducts = data.filter(
         (product) => product.farmer && product.farmer._id === user._id
-      );
-
-      setProducts(myProducts);
+      )
+      setProducts(myProducts)
     } catch (err) {
-      console.error(err);
-      setStatus("Failed to load products.");
+      toast.error("Failed to load products.")
     }
-  };
+  }
 
   const handleDelete = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this product?"
-    );
-
-    if (!confirmDelete) return;
-
+    if (!window.confirm("Are you sure you want to delete this product?")) return
     try {
-      await deleteProduct(id);
-      loadProducts();
+      await deleteProduct(id)
+      loadProducts()
+      toast.success("Product deleted")
     } catch (err) {
-      console.error(err);
-      setStatus("Failed to delete product.");
+      toast.error("Failed to delete product.")
     }
-  };
+  }
 
   return (
-    <div
-      style={{
-        maxWidth: "900px",
-        margin: "40px auto",
-      }}
-    >
-      <h2>My Products</h2>
-
-      {status && <p>{status}</p>}
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-agri-800">My Products</h1>
 
       {products.length === 0 ? (
-        <p>No products found.</p>
+        <p className="text-stone-500">No products found.</p>
       ) : (
-        products.map((product) => (
-          <ProductCard
-            key={product._id}
-            product={product}
-            onDelete={handleDelete}
-          />
-        ))
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <ProductCard
+              key={product._id}
+              product={product}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
       )}
     </div>
-  );
+  )
 }
 
-export default MyProducts;
+export default MyProducts

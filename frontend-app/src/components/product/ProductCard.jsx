@@ -1,4 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router-dom"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Eye, Pencil, Trash2, Heart } from "lucide-react"
 
 function ProductCard({
   product,
@@ -7,79 +11,77 @@ function ProductCard({
   isWishlisted,
   onToggleWishlist,
 }) {
+  const imageUrl = product.images?.[0]
+    ? `http://localhost:5000${product.images[0]}`
+    : null
+
   return (
-    <div
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: "10px",
-        padding: "20px",
-        marginBottom: "20px",
-        boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-      }}
-    >
-      {product.images && product.images.length > 0 ? (
-        <img
-          src={`http://localhost:5000${product.images[0]}`}
-          alt={product.name}
-          style={{ width: "200px", height: "150px", objectFit: "cover", borderRadius: "8px" }}
-        />
-      ) : (
-        <div
-          style={{
-            width: "200px",
-            height: "150px",
-            background: "#eee",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "8px",
-          }}
-        >
-          No Image
-        </div>
-      )}
+    <Card className="overflow-hidden flex flex-col h-full">
+      <div className="aspect-[4/3] bg-stone-100 relative">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={product.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-stone-400 text-sm">
+            No Image
+          </div>
+        )}
+        <Badge className="absolute top-2 right-2 bg-agri-700 text-white">
+          ৳{product.price}
+        </Badge>
+      </div>
 
-      <h3>{product.name}</h3>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg leading-tight">{product.name}</CardTitle>
+        <p className="text-sm text-stone-500">
+          {product.category || product.legacyCategory || "Uncategorized"}
+        </p>
+      </CardHeader>
 
-      <p><strong>Category:</strong> {product.category || product.legacyCategory || 'Uncategorized'}</p>
-      <p><strong>Price:</strong> ৳{product.price}</p>
-      <p><strong>Stock:</strong> {product.stock}</p>
+      <CardContent className="pb-2 flex-1">
+        <p className="text-sm text-stone-600">Stock: {product.stock} available</p>
+      </CardContent>
 
-      <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-        <Link to={`/products/${product._id}`}>
-          <button>View</button>
+      <CardFooter className="flex flex-wrap gap-2 pt-0">
+        <Link to={`/products/${product._id}`} className="flex-1">
+          <Button variant="outline" size="sm" className="w-full">
+            <Eye className="w-4 h-4 mr-1" /> View
+          </Button>
         </Link>
 
         {showActions && (
           <>
             <Link to={`/products/${product._id}/edit`}>
-              <button>Edit</button>
+              <Button variant="ghost" size="sm">
+                <Pencil className="w-4 h-4" />
+              </Button>
             </Link>
-
-            <button
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => onDelete(product._id)}
-              style={{
-                backgroundColor: "#d9534f",
-                color: "white",
-                border: "none",
-                padding: "8px 12px",
-                cursor: "pointer",
-                borderRadius: "5px",
-              }}
             >
-              Delete
-            </button>
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </>
         )}
 
         {onToggleWishlist && (
-          <button onClick={() => onToggleWishlist(product._id)}>
-            {isWishlisted ? "♥ Saved" : "♡ Save"}
-          </button>
+          <Button
+            variant={isWishlisted ? "default" : "outline"}
+            size="sm"
+            onClick={() => onToggleWishlist(product._id)}
+            className={isWishlisted ? "bg-red-600 hover:bg-red-700" : ""}
+          >
+            <Heart className={`w-4 h-4 ${isWishlisted ? "fill-white" : ""}`} />
+          </Button>
         )}
-      </div>
-    </div>
-  );
+      </CardFooter>
+    </Card>
+  )
 }
 
-export default ProductCard;
+export default ProductCard

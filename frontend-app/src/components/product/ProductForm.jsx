@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 
 function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" }) {
   const [form, setForm] = useState({
@@ -7,87 +11,99 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
     category: initialData.category || "",
     price: initialData.price || "",
     stock: initialData.stock || "",
-  });
-
-  const [image, setImage] = useState(null);
+  })
+  const [image, setImage] = useState(null)
 
   const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-
-    onSubmit(form, image);
-  };
+    e.preventDefault()
+    onSubmit(form, image)
+  }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-        maxWidth: "500px",
-        margin: "auto",
-      }}
-    >
-      <input
-        type="text"
-        name="name"
-        placeholder="Product Name"
-        value={form.name}
-        onChange={handleChange}
-        required
-      />
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
+      <div className="space-y-2">
+        <Label htmlFor="name">Product Name</Label>
+        <Input
+          id="name"
+          name="name"
+          placeholder="Enter product name"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+      </div>
 
-      <textarea
-        name="description"
-        placeholder="Description"
-        value={form.description}
-        onChange={handleChange}
-      />
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          name="description"
+          placeholder="Describe your product..."
+          value={form.description}
+          onChange={handleChange}
+          rows={3}
+        />
+      </div>
 
-      <input
-        type="text"
-        name="category"
-        placeholder="Category"
-        value={form.category}
-        onChange={handleChange}
-        required
-      />
+      <div className="space-y-2">
+        <Label htmlFor="category">Category</Label>
+        <Input
+          id="category"
+          name="category"
+          placeholder="e.g. Vegetables, Fruits"
+          value={form.category}
+          onChange={handleChange}
+          required
+        />
+      </div>
 
-      <input
-        type="number"
-        name="price"
-        placeholder="Price"
-        value={form.price}
-        onChange={handleChange}
-        required
-      />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="price">Price (৳)</Label>
+          <Input
+            id="price"
+            name="price"
+            type="number"
+            placeholder="0"
+            value={form.price}
+            onChange={handleChange}
+            required
+            min="0"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="stock">Stock</Label>
+          <Input
+            id="stock"
+            name="stock"
+            type="number"
+            placeholder="0"
+            value={form.stock}
+            onChange={handleChange}
+            min="0"
+          />
+        </div>
+      </div>
 
-      <input
-        type="number"
-        name="stock"
-        placeholder="Stock"
-        value={form.stock}
-        onChange={handleChange}
-      />
+      <div className="space-y-2">
+        <Label htmlFor="image">Product Image</Label>
+        <Input
+          id="image"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImage(e.target.files[0])}
+        />
+      </div>
 
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => setImage(e.target.files[0])}
-      />
-
-      <button type="submit">
+      <Button type="submit" className="w-full bg-agri-700 hover:bg-agri-800">
         {buttonText}
-      </button>
+      </Button>
     </form>
-  );
+  )
 }
 
-export default ProductForm;
+export default ProductForm
