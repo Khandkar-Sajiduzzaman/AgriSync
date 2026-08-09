@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getProduct } from "../api/productApi";
+import { getProduct, recordProductView } from "../api/productApi";
 import { getWishlist, toggleWishlist, getFollowedFarmers, toggleFollowFarmer } from "../api/userApi";
 import { getProductReviews, canReviewProduct } from "../api/reviewApi";
 import ReviewForm from "../components/product/ReviewForm";
@@ -33,6 +33,11 @@ function ProductDetails() {
     try {
       const productData = await getProduct(id);
       setProduct(productData);
+
+      // Track product view for recommendations (from prome_1 branch)
+      if (role === "buyer") {
+        recordProductView(id).catch(() => {});
+      }
 
       if (role === "buyer") {
         const [wishlist, following, reviewEligibility] = await Promise.all([

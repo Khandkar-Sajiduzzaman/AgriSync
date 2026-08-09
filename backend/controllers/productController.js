@@ -31,7 +31,7 @@ const createProduct = async (req, res) => {
         farmerId: req.user.id,
         name,
         description: description || '',
-        legacyCategory: category, // <-- FIX: schema field is legacyCategory
+        legacyCategory: category,
         price: parseFloat(price),
         stock: parseInt(stock) || 0,
         images: [],
@@ -65,7 +65,6 @@ const getProducts = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    // If page is provided, return paginated format
     if (page) {
       const skip = (parseInt(page) - 1) * parseInt(limit || 12);
       const [products, total] = await Promise.all([
@@ -90,7 +89,6 @@ const getProducts = async (req, res) => {
       });
     }
 
-    // Otherwise, return plain array (backward compatible)
     const products = await prisma.product.findMany({
       where,
       include: {
@@ -143,7 +141,7 @@ const updateProduct = async (req, res) => {
 
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
-    if (category !== undefined) data.legacyCategory = category; // <-- FIX
+    if (category !== undefined) data.legacyCategory = category;
     if (price !== undefined) data.price = parseFloat(price);
     if (stock !== undefined) data.stock = parseInt(stock);
 
@@ -211,9 +209,94 @@ const uploadProductImage = async (req, res) => {
   }
 };
 
+// ===== SMART RECOMMENDATIONS (from prome_1 branch) =====
+const getRecommendations = async (req, res) => {
+  try {
+    let recommended = [];
+    const limit = 6;
+
+    if (req.user && req.user.role === 'buyer') {
+      const orders = await prisma.order.findMany({
+        where: { buyerId: req.user.id },
+        include: { items: { include: { product: true } } }
+      });
+
+      const views = await prisma.productView.findMany({
+        where: { buyerId: req.user.id },
+        include: { product: true }
+      });
+
+      const categoryWeights = {};
+      
+      orders.forEach(order => {
+        order.items.forEach(item => {
+          const cat = item.product.legacyCategory;
+          if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 3;
+        });
+      });
+
+      views.forEach(view => {
+        const cat = view.product.legacyCategory;
+        if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 1;
+      });
+
+      const preferredCategories = Object.keys(categoryWeights)
+        .sort((a, b) => categoryWeights[b] - categoryWeights[a])
+        .slice(0, 3);
+
+      if (preferredCategories.length > 0) {
+        recommended = await prisma.product.findMany({
+          where: {
+            legacyCategory: { in: preferredCategories },
+            isAvailable: true
+          },
+          orderBy: { averageRating: 'desc' },
+          take: limit,
+          include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } }
+        });
+      }
+    }
+
+    if (recommended.length < limit) {
+      const excludeIds = recommended.map(p => p.id);
+      const fallbackProducts = await prisma.product.findMany({
+        where: {
+          isAvailable: true,
+          id: { notIn: excludeIds.length ? excludeIds : undefined }
+        },
+        orderBy: { averageRating: 'desc' },
+        take: limit - recommended.length,
+        include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } }
+      });
+      recommended = [...recommended, ...fallbackProducts];
+    }
+
+    res.json(recommended.map(shapeProduct));
+  } catch (error) {
+    console.error('Get recommendations error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const recordProductView = async (req, res) => {
+  try {
+    if (req.user && req.user.role === 'buyer') {
+      await prisma.productView.create({
+        data: {
+          buyerId: req.user.id,
+          productId: req.params.id
+        }
+      });
+    }
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(200).json({ success: false });
+  }
+};
+
+// ===== EXISTING FUNCTION (from main branch) =====
 const getMyProducts = async (req, res) => {
   try {
-    // req.user is set by your authMiddleware after verifying the JWT token
     const products = await prisma.product.findMany({
       where: { farmerId: req.user.id },
       include: {
@@ -239,4 +322,6 @@ module.exports = {
   deleteProduct,
   uploadProductImage,
   getMyProducts,
+  getRecommendations,
+  recordProductView,
 };
