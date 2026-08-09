@@ -24,8 +24,6 @@ export const createProduct = async (productData) => {
   return data;
 };
 
-// Get All Products
-// Get All Products (optionally filtered)
 // Get All Products (paginated + filtered)
 export const getProducts = async (filters = {}) => {
   const params = new URLSearchParams();
@@ -35,7 +33,6 @@ export const getProducts = async (filters = {}) => {
   if (filters.minPrice) params.append("minPrice", filters.minPrice);
   if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
   if (filters.page) params.append("page", filters.page);
-  // limit is optional; default is 12
 
   const query = params.toString();
   const response = await fetch(query ? `${API_URL}?${query}` : API_URL);
@@ -44,7 +41,7 @@ export const getProducts = async (filters = {}) => {
   if (!response.ok) {
     throw new Error(data.message || "Failed to load products");
   }
-  return data; // Now returns object with .data array
+  return data;
 };
 
 // Get Single Product
@@ -120,7 +117,36 @@ export const uploadProductImage = async (id, imageFile) => {
   return data;
 };
 
-// Get My Products
+// Get Smart Recommendations (from prome_1 branch)
+export const getRecommendations = async () => {
+  const response = await fetch(`${API_URL}/recommendations`, {
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  });
+  
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to load recommendations");
+  }
+  return data;
+};
+
+// Record Product View (from prome_1 branch)
+export const recordProductView = async (id) => {
+  try {
+    await fetch(`${API_URL}/${id}/view`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to record view");
+  }
+};
+
+// Get My Products (from main branch)
 export const getMyProducts = async () => {
   const response = await fetch(`${API_URL}/my`, {
     headers: {
