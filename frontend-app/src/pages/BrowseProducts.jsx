@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProducts } from "../api/productApi";
+import { getProducts, getCategories } from "../api/productApi";
 import { getWishlist, toggleWishlist } from "../api/userApi";
 import ProductCard from "../components/product/ProductCard";
 
@@ -36,14 +36,17 @@ function BrowseProducts() {
   };
 
   useEffect(() => {
-    fetchProducts({});
+    // Load page 1 of products immediately
+    fetchProducts({ page: 1 });
 
-    getProducts()
-      .then((result) => {
-        const all = extractArray(result);
-        setCategories([...new Set(all.map((p) => p.legacyCategory || p.category).filter(Boolean))]);
-      })
-      .catch(() => {});
+    // Load categories from lightweight endpoint (NOT every product in the database)
+    // Load categories from lightweight endpoint (NOT every product in the database)
+    getCategories()
+      .then((cats) => setCategories(cats))
+      .catch((err) => {
+        console.error("Failed to load categories:", err);
+        setError(err.message);
+      });
 
     if (role === "buyer") {
       getWishlist()
@@ -54,7 +57,7 @@ function BrowseProducts() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    fetchProducts({ search, category, minPrice, maxPrice });
+    fetchProducts({ search, category, minPrice, maxPrice, page: 1 });
   };
 
   const handleReset = () => {
@@ -62,17 +65,25 @@ function BrowseProducts() {
     setCategory("");
     setMinPrice("");
     setMaxPrice("");
-    fetchProducts({});
+    fetchProducts({ page: 1 });
   };
 
   const handleToggleWishlist = async (productId) => {
+    // Optimistic: flip the heart immediately, don't wait for server
+    const wasSaved = wishlistIds.includes(productId);
+    setWishlistIds((prev) =>
+      wasSaved ? prev.filter((id) => id !== productId) : [...prev, productId]
+    );
+
+    // Fire API in background without blocking the UI
     try {
       await toggleWishlist(productId);
-      setWishlistIds((prev) =>
-        prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
-      );
     } catch (err) {
-      setError(err.message);
+      // Revert on error silently — don't spam the page with red text
+      setWishlistIds((prev) =>
+        wasSaved ? [...prev, productId] : prev.filter((id) => id !== productId)
+      );
+      console.error("Wishlist toggle failed:", err.message);
     }
   };
 

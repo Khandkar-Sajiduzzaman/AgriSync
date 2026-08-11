@@ -82,10 +82,8 @@ const addToCart = async (req, res) => {
 
     res.status(201).json({
       message: 'Added to cart',
-      cartItem: {
-        ...cartItem,
-        product: shapeProduct(cartItem.product),
-      },
+      cartItemId: cartItem.id,
+      quantity: cartItem.quantity,
     });
   } catch (error) {
     console.error('Add to cart error:', error);
@@ -111,7 +109,7 @@ const getCart = async (req, res) => {
         product: {
           include: {
             farmer: {
-              select: { id: true, name: true, phone: true, address: true },
+              select: { id: true, name: true },
             },
           },
         },
@@ -267,9 +265,28 @@ const clearCart = async (req, res) => {
   }
 };
 
+const getCartCount = async (req, res) => {
+  try {
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ message: 'Only buyers can view cart' });
+    }
+
+    const result = await prisma.cartItem.aggregate({
+      where: { userId: req.user.id },
+      _sum: { quantity: true },
+    });
+
+    res.json({ totalItems: result._sum.quantity || 0 });
+  } catch (error) {
+    console.error('Get cart count error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   addToCart,
   getCart,
+  getCartCount,
   updateCartQuantity,
   removeFromCart,
   clearCart,

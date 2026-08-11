@@ -12,6 +12,12 @@ export const getCart = async () => {
   return data;
 };
 
+export const getCartCount = async () => {
+  const res = await fetch(`${BASE_URL}/count`, { headers: { ...authHeader() } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to load cart count");
+  return data;
+};
 export const addToCart = async (productId, quantity = 1) => {
   const res = await fetch(BASE_URL, {
     method: "POST",

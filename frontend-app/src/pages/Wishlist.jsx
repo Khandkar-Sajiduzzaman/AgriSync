@@ -27,9 +27,15 @@ function Wishlist() {
   }
 
   const handleRemove = async (productId) => {
-    await toggleWishlist(productId)
+    // Optimistic: remove from UI immediately
     setProducts((prev) => prev.filter((p) => p._id !== productId))
     toast.success("Removed from wishlist")
+    try {
+      await toggleWishlist(productId)
+    } catch (err) {
+      toast.error("Failed to remove. Refreshing...")
+      load() // Revert by reloading on error
+    }
   }
 
   const handleUnfollow = async (farmerId) => {

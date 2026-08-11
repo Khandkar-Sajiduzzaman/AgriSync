@@ -7,6 +7,11 @@
 const jwt = require("jsonwebtoken");
 const prisma = require('../config/db');
 
+// In-memory cache: userId -> { user, expiresAt }
+// Prevents hitting Supabase on every single authenticated API call.
+const userCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const protect = async (req, res, next) => {
   let token;
 
@@ -18,8 +23,15 @@ const protect = async (req, res, next) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // attach the logged-in user to the request, minus the password
-            const user = await prisma.user.findUnique({
+      // Check cache first
+      const cached = userCache.get(decoded.id);
+      if (cached && cached.expiresAt > Date.now()) {
+        req.user = cached.user;
+        return next();
+      }
+
+      // Cache miss: hit the database once
+      const user = await prisma.user.findUnique({
         where: { id: decoded.id },
         select: {
           id: true,
@@ -39,8 +51,10 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ message: 'User no longer exists' });
       }
 
+      // Store in cache so the next API call skips the DB round-trip
+      userCache.set(decoded.id, { user, expiresAt: Date.now() + CACHE_TTL_MS });
       req.user = user;
-      next(); // token is valid, continue to the actual route handler
+      next(); // token is valid, continue to the actual route handler // token is valid, continue to the actual route handler
     } catch (error) {
       return res.status(401).json({ message: "Not authorized, invalid token" });
     }

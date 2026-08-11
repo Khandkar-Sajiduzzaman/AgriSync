@@ -60,6 +60,7 @@ function ProductCard({
         <img
           src={`http://localhost:5000${product.images[0]}`}
           alt={product.name}
+          loading="lazy"
           style={{ width: "100%", height: "150px", objectFit: "cover", borderRadius: "8px" }}
         />
       ) : (

@@ -355,6 +355,7 @@ model Product {
   productVotes    ProductVote[]
 
   @@index([farmerId])
+  @@index([legacyCategory])
   @@index([categoryId])
   @@index([isAvailable])
   @@index([isApproved])
@@ -440,6 +441,7 @@ model CartItem {
 
   @@unique([userId, productId]) // One cart entry per product per buyer
   @@index([userId])
+  @@index([userId, createdAt])
 }
 
 // =============================================================================

@@ -28,12 +28,19 @@ function OrdersPage() {
   };
 
   const handleStatusUpdate = async (orderId, newStatus, notes = "") => {
+    // 1. Optimistically update the UI immediately
+    const previousOrders = orders;
+    setOrders((prev) =>
+      prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
+    );
     setUpdatingId(orderId);
+
     try {
       await updateOrderStatus(orderId, { status: newStatus, notes });
-      await loadOrders();
+      // Success — UI already shows the new status, no need to reload everything
     } catch (err) {
       setError(err.message);
+      setOrders(previousOrders); // Revert on error
     } finally {
       setUpdatingId(null);
     }
