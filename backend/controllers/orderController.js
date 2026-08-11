@@ -275,38 +275,52 @@ const getMyOrders = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    // LIGHTWEIGHT list view: only fields the OrdersPage list actually renders
     const orders = await prisma.order.findMany({
       where,
-      include: {
-        buyer: { select: { id: true, name: true, email: true, phone: true, address: true } },
-        farmer: { select: { id: true, name: true, email: true, phone: true, address: true } },
-        deliveryMan: { select: { id: true, name: true, phone: true } },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        paymentMethod: true,
+        totalAmount: true,
+        createdAt: true,
+        buyer: { select: { id: true, name: true } },
+        farmer: { select: { id: true, name: true } },
         items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                images: true,
-                legacyCategory: true,
-                unit: true,
-              },
-            },
+          select: {
+            id: true,
+            quantity: true,
+            productName: true,
+            product: { select: { id: true, images: true } },
           },
         },
-        statusHistory: { orderBy: { createdAt: 'asc' } },
-        _count: { select: { reviews: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json(orders.map(shapeOrder));
+    // Fast manual transform — no recursive shapeOrder() overhead
+    res.json(orders.map((o) => ({
+      _id: o.id,
+      orderNumber: o.orderNumber,
+      status: o.status,
+      paymentMethod: o.paymentMethod,
+      totalAmount: o.totalAmount?.toNumber ? o.totalAmount.toNumber() : o.totalAmount,
+      createdAt: o.createdAt,
+      buyer: o.buyer ? { _id: o.buyer.id, name: o.buyer.name } : null,
+      farmer: o.farmer ? { _id: o.farmer.id, name: o.farmer.name } : null,
+      items: o.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        productName: item.productName,
+        product: item.product ? { id: item.product.id, images: item.product.images } : null,
+      })),
+    })));
   } catch (error) {
     console.error('Get orders error:', error);
     res.status(500).json({ message: error.message });
   }
 };
-
 /**
  * GET /api/orders/:id
  * Get detailed information about a single order.

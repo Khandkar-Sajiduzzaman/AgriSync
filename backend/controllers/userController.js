@@ -158,25 +158,39 @@ const toggleWishlist = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    const existing = await prisma.wishlist.findUnique({
-      where: { userId_productId: { userId, productId } },
-    });
-
-    if (existing) {
-      await prisma.wishlist.delete({ where: { userId_productId: { userId, productId } } });
-    } else {
-      await prisma.wishlist.create({ data: { userId, productId } });
+    // BULLETPROOF TOGGLE: try delete first. If it fails (already gone), create.
+    // If create fails (someone else added it), delete it. No "check first" = no races.
+    try {
+      await prisma.wishlist.delete({
+        where: { userId_productId: { userId, productId } },
+      });
+      return res.json({ success: true, action: 'removed' });
+    } catch (deleteErr) {
+      if (deleteErr.code === 'P2025') {
+        // Record didn't exist → try to create it
+        try {
+          await prisma.wishlist.create({ data: { userId, productId } });
+          return res.json({ success: true, action: 'added' });
+        } catch (createErr) {
+          if (createErr.code === 'P2002') {
+            // Another request created it in the gap → delete to complete toggle
+            try {
+              await prisma.wishlist.delete({
+                where: { userId_productId: { userId, productId } },
+              });
+              return res.json({ success: true, action: 'removed' });
+            } catch {
+              return res.json({ success: true, action: 'added' });
+            }
+          }
+          throw createErr;
+        }
+      }
+      throw deleteErr;
     }
-
-    const wishlist = await prisma.wishlist.findMany({
-      where: { userId },
-      include: { product: { include: { farmer: { select: { name: true, phone: true, address: true } } } } },
-    });
-
-    res.json(wishlist.map((w) => withId(w.product)));
   } catch (error) {
     console.error('Toggle wishlist error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Something went wrong' });
   }
 };
 
@@ -215,25 +229,36 @@ const toggleFollowFarmer = async (req, res) => {
       return res.status(404).json({ message: 'Farmer not found' });
     }
 
-    const existing = await prisma.follow.findUnique({
-      where: { followerId_followingId: { followerId, followingId: farmerId } },
-    });
-
-    if (existing) {
-      await prisma.follow.delete({ where: { followerId_followingId: { followerId, followingId: farmerId } } });
-    } else {
-      await prisma.follow.create({ data: { followerId, followingId: farmerId } });
+    // BULLETPROOF TOGGLE (same pattern as wishlist)
+    try {
+      await prisma.follow.delete({
+        where: { followerId_followingId: { followerId, followingId: farmerId } },
+      });
+      return res.json({ success: true, action: 'unfollowed' });
+    } catch (deleteErr) {
+      if (deleteErr.code === 'P2025') {
+        try {
+          await prisma.follow.create({ data: { followerId, followingId: farmerId } });
+          return res.json({ success: true, action: 'followed' });
+        } catch (createErr) {
+          if (createErr.code === 'P2002') {
+            try {
+              await prisma.follow.delete({
+                where: { followerId_followingId: { followerId, followingId: farmerId } },
+              });
+              return res.json({ success: true, action: 'unfollowed' });
+            } catch {
+              return res.json({ success: true, action: 'followed' });
+            }
+          }
+          throw createErr;
+        }
+      }
+      throw deleteErr;
     }
-
-    const followed = await prisma.follow.findMany({
-      where: { followerId },
-      include: { following: { select: { id: true, name: true, email: true, phone: true, address: true } } },
-    });
-
-    res.json(followed.map((f) => withId(f.following)));
   } catch (error) {
     console.error('Toggle follow error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Something went wrong' });
   }
 };
 

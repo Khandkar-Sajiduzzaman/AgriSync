@@ -65,41 +65,32 @@ const getProducts = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    if (page) {
-      const skip = (parseInt(page) - 1) * parseInt(limit || 12);
-      const [products, total] = await Promise.all([
-        prisma.product.findMany({
-          where,
-          include: {
-            farmer: {
-              select: { id: true, name: true, email: true, phone: true, address: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: parseInt(limit || 12),
-        }),
-        prisma.product.count({ where })
-      ]);
-      return res.json({
-        data: products.map(shapeProduct),
-        total,
-        page: parseInt(page),
-        totalPages: Math.ceil(total / parseInt(limit || 12)),
-      });
-    }
+    // Always paginate — default to page 1
+    const currentPage = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 12;
+    const skip = (currentPage - 1) * pageSize;
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        farmer: {
-          select: { id: true, name: true, email: true, phone: true, address: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          farmer: {
+            select: { id: true, name: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.product.count({ where })
+    ]);
+
+    res.json({
+      data: products.map(shapeProduct),
+      total,
+      page: currentPage,
+      totalPages: Math.ceil(total / pageSize),
     });
-
-    res.json(products.map(shapeProduct));
   } catch (error) {
     console.error('Get products error:', error);
     res.status(500).json({ message: error.message });
@@ -314,6 +305,23 @@ const getMyProducts = async (req, res) => {
   }
 };
 
+const getProductCategories = async (req, res) => {
+  try {
+    // Grab all non-null legacyCategory values, then deduplicate in JS
+    // This is more reliable than Prisma distinct across all versions
+    const rows = await prisma.product.findMany({
+      where: { legacyCategory: { not: null } },
+      select: { legacyCategory: true },
+    });
+
+    const uniqueCategories = [...new Set(rows.map((r) => r.legacyCategory))].filter(Boolean);
+    res.json(uniqueCategories);
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
@@ -322,6 +330,7 @@ module.exports = {
   deleteProduct,
   uploadProductImage,
   getMyProducts,
+  getProductCategories,
   getRecommendations,
   recordProductView,
 };

@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   addToCart,
   getCart,
+  getCartCount,
   updateCartQuantity,
   removeFromCart,
   clearCart,
@@ -15,6 +16,8 @@ router.route("/")
   .post(protect, addToCart)
   .get(protect, getCart)
   .delete(protect, clearCart);
+
+router.get("/count", protect, getCartCount);
 
 router.route("/:productId")
   .put(protect, updateCartQuantity)

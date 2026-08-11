@@ -1,11 +1,10 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { getCart } from "../api/cartApi";
+import { getCartCount } from "../api/cartApi";
 
 const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [cartCount, setCartCount] = useState(0);
-  const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const refreshCart = useCallback(async () => {
@@ -14,11 +13,9 @@ export function CartProvider({ children }) {
 
     setLoading(true);
     try {
-      const data = await getCart();
-      setCartItems(data.items || []);
-      setCartCount(data.summary?.totalItems || 0);
+      const data = await getCartCount();
+      setCartCount(data.totalItems || 0);
     } catch {
-      setCartItems([]);
       setCartCount(0);
     } finally {
       setLoading(false);
@@ -30,7 +27,7 @@ export function CartProvider({ children }) {
   }, [refreshCart]);
 
   return (
-    <CartContext.Provider value={{ cartCount, cartItems, loading, refreshCart }}>
+    <CartContext.Provider value={{ cartCount, loading, refreshCart }}>
       {children}
     </CartContext.Provider>
   );

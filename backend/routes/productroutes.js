@@ -4,13 +4,12 @@ const router = express.Router();
 const {
   createProduct,
   getProducts,
+  getProductCategories,
   getProductById,
   updateProduct,
   deleteProduct,
   uploadProductImage,
   getMyProducts,
-  getRecommendations,
-  recordProductView,
 } = require("../controllers/productController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -22,16 +21,16 @@ router.post("/", protect, createProduct);
 // View all products
 router.get("/", getProducts);
 
-// Get MY products (Farmer only) — MUST come before /:id
+// SPECIFIC routes MUST come BEFORE the catch-all /:id route
+// Otherwise Express treats "categories" and "my" as product IDs
+
+// Get distinct categories (lightweight — used by browse page filter)
+router.get("/categories", getProductCategories);
+
+// Get MY products (Farmer only)
 router.get("/my", protect, getMyProducts);
 
-// Get Smart Recommendations (Buyer only) — MUST come before /:id
-router.get("/recommendations", protect, getRecommendations);
-
-// Record product view for recommendations — MUST come before /:id
-router.post("/:id/view", protect, recordProductView);
-
-// View one product
+// View one product — this is the CATCH-ALL, keep it LAST
 router.get("/:id", getProductById);
 
 // Update product

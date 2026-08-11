@@ -24,6 +24,16 @@ export const createProduct = async (productData) => {
   return data;
 };
 
+// Get distinct categories (lightweight — for browse page filter dropdown)
+export const getCategories = async () => {
+  const response = await fetch(`${API_URL}/categories`);
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to load categories");
+  }
+  return data;
+};
+
 // Get All Products (paginated + filtered)
 export const getProducts = async (filters = {}) => {
   const params = new URLSearchParams();
@@ -33,6 +43,8 @@ export const getProducts = async (filters = {}) => {
   if (filters.minPrice) params.append("minPrice", filters.minPrice);
   if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
   if (filters.page) params.append("page", filters.page);
+  if (filters.limit) params.append("limit", filters.limit);
+  // limit is optional; default is 12
 
   const query = params.toString();
   const response = await fetch(query ? `${API_URL}?${query}` : API_URL);

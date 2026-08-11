@@ -17,8 +17,8 @@ function Dashboard() {
 
   const loadProducts = async () => {
     try {
-      const data = await getProducts()
-      setProducts(data.slice(0, 6))
+      const response = await getProducts({ page: 1, limit: 6 })
+      setProducts(response.data || [])
     } catch (err) {
       console.log(err)
     }

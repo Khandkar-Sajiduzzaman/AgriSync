@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getCart, updateCartQuantity, removeFromCart } from "../api/cartApi";
+import { useCart } from "../context/CartContext";
 
 function Cart() {
   const [cart, setCart] = useState({ items: [], summary: { totalItems: 0, totalPrice: 0 } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const debounceTimers = useRef({});
 
   const navigate = useNavigate();
+  const { refreshCart } = useCart();
 
   const loadCart = async () => {
     setLoading(true);
@@ -23,30 +26,69 @@ function Cart() {
 
   useEffect(() => {
     loadCart();
+    // Cleanup: cancel any pending API calls if the user leaves the page
+    return () => {
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+    };
   }, []);
 
   const handleQuantityChange = async (productId, newQty) => {
-    try {
-      await updateCartQuantity(productId, newQty);
-      loadCart();
-    } catch (err) {
-      setError(err.message);
+    // 1. Optimistically update the UI immediately
+    setCart((prev) => {
+      const updatedItems = prev.items.map((item) => {
+        if (item.product._id === productId) {
+          const itemTotal = item.product.price * newQty;
+          return {
+            ...item,
+            quantity: newQty,
+            itemTotal: parseFloat(itemTotal.toFixed(2)),
+          };
+        }
+        return item;
+      });
+      const totalItems = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
+      const totalPrice = updatedItems.reduce((sum, item) => sum + item.itemTotal, 0);
+      return {
+        items: updatedItems,
+        summary: {
+          totalItems,
+          totalPrice: parseFloat(totalPrice.toFixed(2)),
+        },
+      };
+    });
+
+    // 2. Debounce the API call: wait 500ms after the user stops clicking/typing
+    if (debounceTimers.current[productId]) {
+      clearTimeout(debounceTimers.current[productId]);
     }
+    debounceTimers.current[productId] = setTimeout(async () => {
+      try {
+        await updateCartQuantity(productId, newQty);
+      } catch (err) {
+        setError(err.message);
+        loadCart(); // Revert to server truth on error
+      }
+    }, 500);
   };
 
   const handleRemove = async (productId) => {
+    // Optimistically remove from UI immediately
+    const removedItem = cart.items.find((i) => i.product._id === productId);
+    setCart((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.product._id !== productId),
+      summary: {
+        totalItems: prev.summary.totalItems - (removedItem?.quantity || 0),
+        totalPrice: parseFloat((prev.summary.totalPrice - (removedItem?.itemTotal || 0)).toFixed(2)),
+      },
+    }));
+
     try {
       await removeFromCart(productId);
-      setCart((prev) => ({
-        ...prev,
-        items: prev.items.filter((item) => item.product._id !== productId),
-        summary: {
-          totalItems: prev.summary.totalItems - (prev.items.find((i) => i.product._id === productId)?.quantity || 0),
-          totalPrice: prev.summary.totalPrice - (prev.items.find((i) => i.product._id === productId)?.itemTotal || 0),
-        },
-      }));
+      refreshCart(); // Update the navbar badge count
     } catch (err) {
       setError(err.message);
+      loadCart(); // Revert on error
     }
   };
 
@@ -139,6 +181,7 @@ function Cart() {
                   <img
                     src={`http://localhost:5000${item.product.images[0]}`}
                     alt={item.product.name}
+                    loading="lazy"
                     style={{
                       width: "80px",
                       height: "80px",
