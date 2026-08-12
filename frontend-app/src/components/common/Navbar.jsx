@@ -10,6 +10,7 @@ import {
   FaSignOutAlt,
   FaShoppingCart,
   FaClipboardList,
+  FaCommentDots,
 } from "react-icons/fa";
 
 import "../../styles/navbar.css";
@@ -53,6 +54,10 @@ function Navbar({ onLogout }) {
               <FaBoxOpen /> My Products
             </Link>
 
+            <Link className={active("/chat")} to="/chat">
+              <FaCommentDots /> Messages
+            </Link>
+
             <Link className={active("/orders")} to="/orders">
               <FaClipboardList /> Orders
             </Link>
@@ -63,6 +68,10 @@ function Navbar({ onLogout }) {
           <>
             <Link className={active("/products/browse")} to="/products/browse">
               <FaSearch /> Browse
+            </Link>
+
+            <Link className={active("/chat")} to="/chat">
+             <FaCommentDots /> Messages
             </Link>
 
             <Link className={active("/cart")} to="/cart" style={{ position: "relative" }}>

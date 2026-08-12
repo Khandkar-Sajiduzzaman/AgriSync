@@ -4,7 +4,7 @@ import { getProducts } from "../api/productApi"
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, MessageCircle, User, Search, PlusCircle, PackageOpen, Heart } from "lucide-react"
+import { MapPin, User, Search, PlusCircle, PackageOpen, Heart } from "lucide-react"
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user"))
@@ -63,8 +63,8 @@ function Dashboard() {
       </section>
 
       {/* Bottom Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-agri-700">
               <MapPin className="w-5 h-5" /> Delivery Zones
@@ -78,24 +78,6 @@ function Dashboard() {
                 Farmers will soon define delivery zones and buyers will see availability.
               </p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-agri-700">
-              <MessageCircle className="w-5 h-5" /> AgriSync Support
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-stone-100 rounded-lg p-4 text-sm text-stone-600 leading-relaxed">
-              Hello there! 👋<br /><br />
-              Buyer–Farmer live chat will be available in Sprint 3.<br />
-              Stay tuned!
-            </div>
-            <Button className="w-full bg-agri-700 hover:bg-agri-800">
-              Coming Soon
-            </Button>
           </CardContent>
         </Card>
       </div>

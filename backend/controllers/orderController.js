@@ -236,6 +236,18 @@ const placeOrder = async (req, res) => {
         },
       });
 
+      // AUTO-START CHAT ON ORDER
+      if (buyerId !== farmerId) {
+        await prisma.message.create({
+          data: {
+            senderId: buyerId,
+            receiverId: farmerId,
+            content: `Hello! I have placed a new order (${fullOrder.orderNumber}) for your products.`,
+            orderId: fullOrder.id,
+          }
+        });
+      }
+
       createdOrders.push(shapeOrder(fullOrder));
     }
 

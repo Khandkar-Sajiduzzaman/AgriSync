@@ -158,8 +158,7 @@ const toggleWishlist = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // BULLETPROOF TOGGLE: try delete first. If it fails (already gone), create.
-    // If create fails (someone else added it), delete it. No "check first" = no races.
+    // BULLETPROOF TOGGLE
     try {
       await prisma.wishlist.delete({
         where: { userId_productId: { userId, productId } },
@@ -167,13 +166,29 @@ const toggleWishlist = async (req, res) => {
       return res.json({ success: true, action: 'removed' });
     } catch (deleteErr) {
       if (deleteErr.code === 'P2025') {
-        // Record didn't exist → try to create it
+        // Record didn't exist, try to create it
         try {
           await prisma.wishlist.create({ data: { userId, productId } });
+
+          // Check if a wishlist message was already sent for this exact product to avoid spam
+          const existingMsg = await prisma.message.findFirst({
+            where: { senderId: userId, receiverId: product.farmerId, productId }
+          });
+
+          if (!existingMsg && userId !== product.farmerId) {
+            await prisma.message.create({
+              data: {
+                senderId: userId,
+                receiverId: product.farmerId,
+                content: `Hello! I just added your product "${product.name}" to my wishlist.`,
+                productId: productId,
+              }
+            });
+          }
+
           return res.json({ success: true, action: 'added' });
         } catch (createErr) {
           if (createErr.code === 'P2002') {
-            // Another request created it in the gap → delete to complete toggle
             try {
               await prisma.wishlist.delete({
                 where: { userId_productId: { userId, productId } },

@@ -19,6 +19,9 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 
+//Chat
+import ChatPage from "./pages/ChatPage";
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState(null);
@@ -61,6 +64,9 @@ function App() {
 
         {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />
+
+        {/* Chat (Available to logged-in users) */}
+        <Route path="/chat" element={<ChatPage />} />
 
         {/* Farmer Only */}
         <Route
