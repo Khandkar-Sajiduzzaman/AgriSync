@@ -20,6 +20,8 @@ function AuthForm({ onAuthSuccess }) {
     email: "",
     password: "",
     role: "buyer",
+    vehicleType: "",
+    licenseNumber: "",
   })
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -106,7 +108,7 @@ function AuthForm({ onAuthSuccess }) {
             </h2>
             <p className="text-stone-500 mt-1 text-sm">
               {mode === "register"
-                ? "Join as a farmer or a buyer to get started."
+                ? "Join as a farmer, buyer, delivery partner, or admin."
                 : "Log in to your AgriSync account."}
             </p>
           </div>
@@ -132,12 +134,40 @@ function AuthForm({ onAuthSuccess }) {
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
-                    <SelectContent>
+                     <SelectContent position="popper" className="z-50">
                       <SelectItem value="buyer">Buyer</SelectItem>
                       <SelectItem value="farmer">Farmer</SelectItem>
+                      <SelectItem value="delivery_man">Delivery Man</SelectItem>
+                      <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Extra fields for Delivery Man */}
+                {form.role === "delivery_man" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="vehicleType">Vehicle Type</Label>
+                      <Input
+                        id="vehicleType"
+                        name="vehicleType"
+                        placeholder="e.g. Motorcycle, Van, Truck"
+                        value={form.vehicleType || ""}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="licenseNumber">License Number</Label>
+                      <Input
+                        id="licenseNumber"
+                        name="licenseNumber"
+                        placeholder="e.g. DL-123456"
+                        value={form.licenseNumber || ""}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  </>
+                )}
               </>
             )}
 

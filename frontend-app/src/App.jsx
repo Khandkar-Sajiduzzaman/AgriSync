@@ -22,6 +22,9 @@ import OrderDetailPage from "./pages/OrderDetailPage";
 //Chat
 import ChatPage from "./pages/ChatPage";
 
+// DeliveryDashboard
+import DeliveryDashboard from "./pages/DeliveryDashboard";
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState(null);
@@ -101,19 +104,23 @@ function App() {
           element={role === "buyer" ? <CheckoutPage /> : <Navigate to="/" replace />}
         />
 
-        {/* NEW: Orders (Buyer + Farmer) */}
+        {/* NEW: Orders (Buyer + Farmer + Delivery Man) */}
         <Route
           path="/orders"
-          element={role === "buyer" || role === "farmer" ? <OrdersPage /> : <Navigate to="/" replace />}
+          element={role === "buyer" || role === "farmer" || role === "delivery_man" ? <OrdersPage /> : <Navigate to="/" replace />}
         />
 
-        {/* NEW: Order Detail (Buyer + Farmer) */}
+        {/* NEW: Order Detail (Buyer + Farmer + Delivery Man) */}
         <Route
           path="/orders/:id"
-          element={role === "buyer" || role === "farmer" ? <OrderDetailPage /> : <Navigate to="/" replace />}
+          element={role === "buyer" || role === "farmer" || role === "delivery_man" ? <OrderDetailPage /> : <Navigate to="/" replace />}
+        />
+        {/* Delivery Man Dashboard */}
+        <Route
+          path="/delivery"
+          element={role === "delivery_man" ? <DeliveryDashboard /> : <Navigate to="/" replace />}
         />
       </Route>
-
       {/* Unknown Routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

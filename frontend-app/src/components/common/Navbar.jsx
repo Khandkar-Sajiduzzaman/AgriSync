@@ -11,6 +11,7 @@ import {
   FaShoppingCart,
   FaClipboardList,
   FaCommentDots,
+  FaTruck,
 } from "react-icons/fa";
 
 import "../../styles/navbar.css";
@@ -101,6 +102,18 @@ function Navbar({ onLogout }) {
 
             <Link className={active("/orders")} to="/orders">
               <FaClipboardList /> My Orders
+            </Link>
+          </>
+        )}
+
+        {role === "delivery_man" && (
+          <>
+            <Link className={active("/delivery")} to="/delivery">
+              <FaTruck /> My Deliveries
+            </Link>
+
+            <Link className={active("/orders")} to="/orders">
+              <FaClipboardList /> Orders
             </Link>
           </>
         )}

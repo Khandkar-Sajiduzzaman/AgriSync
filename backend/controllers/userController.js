@@ -10,7 +10,7 @@ const withId = (obj) => (obj ? { ...obj, _id: obj.id } : obj);
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role, phone, address } = req.body;
+    const { name, email, password, role, phone, address, vehicleType, licenseNumber } = req.body;
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'Name, email, password, and role are required' });
@@ -24,21 +24,45 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role,
-        phone: phone || '',
-        address: address || '',
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-      },
+    // Create user + role-specific profile in a transaction
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role,
+          phone: phone || '',
+          address: address || '',
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      });
+
+      // Create the matching profile based on role
+      if (role === 'farmer') {
+        await tx.farmerProfile.create({
+          data: { userId: newUser.id },
+        });
+      } else if (role === 'buyer') {
+        await tx.buyerProfile.create({
+          data: { userId: newUser.id },
+        });
+      } else if (role === 'delivery_man') {
+        await tx.deliveryManProfile.create({
+          data: {
+            userId: newUser.id,
+            vehicleType: vehicleType || null,
+            licenseNumber: licenseNumber || null,
+          },
+        });
+      }
+
+      return newUser;
     });
 
     res.status(201).json({

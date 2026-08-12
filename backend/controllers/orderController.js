@@ -281,6 +281,8 @@ const getMyOrders = async (req, res) => {
       where = { buyerId: userId };
     } else if (userRole === 'farmer') {
       where = { farmerId: userId };
+    } else if (userRole === 'delivery_man') {
+      where = { deliveryManId: userId };
     } else if (userRole === 'admin') {
       where = {};
     } else {
@@ -430,9 +432,15 @@ const updateOrderStatus = async (req, res) => {
       if (status === 'cancelled' && order.status === 'pending') {
         canUpdate = true;
       }
-    } else if (isFarmer) {
+        } else if (isFarmer) {
       const farmerAllowed = ['confirmed', 'processing', 'shipped', 'cancelled'];
       if (farmerAllowed.includes(status)) {
+        // Prevent shipping if no delivery man is assigned
+        if (status === 'shipped' && !order.deliveryManId) {
+          return res.status(400).json({
+            message: 'Please assign a delivery man before marking as shipped',
+          });
+        }
         const flow = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
         const currentIndex = flow.indexOf(order.status);
         const newIndex = flow.indexOf(status);
@@ -440,6 +448,7 @@ const updateOrderStatus = async (req, res) => {
           canUpdate = true;
         }
       }
+     
     } else if (isDeliveryMan) {
       const deliveryAllowed = ['out_for_delivery', 'delivered'];
       if (deliveryAllowed.includes(status)) {
@@ -642,6 +651,236 @@ const addTrackingUpdate = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+/**
+ * GET /api/orders/available-delivery-men
+ * Farmers and admins can see which delivery men are online and available.
+ */
+const getAvailableDeliveryMen = async (req, res) => {
+  try {
+    if (req.user.role !== 'farmer' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only farmers and admins can view delivery men' });
+    }
+
+    const deliveryMen = await prisma.user.findMany({
+      where: {
+        role: 'delivery_man',
+        accountStatus: 'active',
+        deliveryManProfile: { isAvailable: true },
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        deliveryManProfile: {
+          select: {
+            vehicleType: true,
+            licenseNumber: true,
+            currentLatitude: true,
+            currentLongitude: true,
+            isAvailable: true,
+          },
+        },
+      },
+    });
+
+    res.json(deliveryMen.map((dm) => ({
+      ...dm,
+      _id: dm.id,
+    })));
+  } catch (error) {
+    console.error('Get available delivery men error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * PUT /api/orders/:id/assign-delivery
+ * Farmer assigns a delivery man to an order. Also marks delivery man as unavailable.
+ */
+const assignDeliveryMan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deliveryManId } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (!deliveryManId) {
+      return res.status(400).json({ message: 'deliveryManId is required' });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { farmerId: true, status: true, deliveryManId: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.farmerId !== userId && userRole !== 'admin') {
+      return res.status(403).json({ message: 'Only the farmer who owns this order can assign a delivery man' });
+    }
+
+    // Verify the delivery man exists and is available
+    const dm = await prisma.user.findUnique({
+      where: { id: deliveryManId },
+      include: { deliveryManProfile: true },
+    });
+
+    if (!dm || dm.role !== 'delivery_man') {
+      return res.status(404).json({ message: 'Delivery man not found' });
+    }
+
+    if (!dm.deliveryManProfile?.isAvailable) {
+      return res.status(400).json({ message: 'This delivery man is currently unavailable' });
+    }
+
+    // Assign delivery man and mark them as busy
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: { deliveryManId },
+      });
+
+      await tx.deliveryManProfile.update({
+        where: { userId: deliveryManId },
+        data: { isAvailable: false },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          status: order.status, // keep current status, just log the assignment
+          notes: `Delivery man assigned: ${dm.name}`,
+          changedBy: userId,
+        },
+      });
+    });
+
+    res.json({ message: 'Delivery man assigned successfully', deliveryMan: { _id: dm.id, name: dm.name } });
+  } catch (error) {
+    console.error('Assign delivery man error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * PUT /api/delivery/location
+ * Delivery man updates their current GPS coordinates.
+ * Also creates a tracking record for any active order they are assigned to.
+ */
+const updateDeliveryLocation = async (req, res) => {
+  try {
+    if (req.user.role !== 'delivery_man') {
+      return res.status(403).json({ message: 'Only delivery men can update location' });
+    }
+
+    const { latitude, longitude } = req.body;
+    const userId = req.user.id;
+
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ message: 'Latitude and longitude are required' });
+    }
+
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+
+    // Update the delivery man's profile with current location
+    await prisma.deliveryManProfile.update({
+      where: { userId },
+      data: {
+        currentLatitude: lat,
+        currentLongitude: lng,
+      },
+    });
+
+    // Find any order this delivery man is currently assigned to
+    // that is in "out_for_delivery" status
+    const activeOrder = await prisma.order.findFirst({
+      where: {
+        deliveryManId: userId,
+        status: 'out_for_delivery',
+      },
+    });
+
+    // If they have an active delivery, log a tracking point
+    if (activeOrder) {
+      await prisma.deliveryTracking.create({
+        data: {
+          orderId: activeOrder.id,
+          latitude: lat,
+          longitude: lng,
+          status: 'moving',
+        },
+      });
+    }
+
+    res.json({ message: 'Location updated', orderId: activeOrder?.id || null });
+  } catch (error) {
+    console.error('Update delivery location error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * GET /api/orders/:id/latest-tracking
+ * Returns ONLY the most recent tracking point. Lightweight for polling.
+ */
+const getLatestTracking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { buyerId: true, farmerId: true, deliveryManId: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const isInvolved =
+      order.buyerId === userId ||
+      order.farmerId === userId ||
+      order.deliveryManId === userId ||
+      userRole === 'admin';
+
+    if (!isInvolved) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const latest = await prisma.deliveryTracking.findFirst({
+      where: { orderId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Also get delivery man's current live location from their profile
+    let currentLocation = null;
+    if (order.deliveryManId) {
+      const dmProfile = await prisma.deliveryManProfile.findUnique({
+        where: { userId: order.deliveryManId },
+        select: { currentLatitude: true, currentLongitude: true, isAvailable: true },
+      });
+      if (dmProfile) {
+        currentLocation = {
+          latitude: dmProfile.currentLatitude,
+          longitude: dmProfile.currentLongitude,
+        };
+      }
+    }
+
+    res.json({
+      orderId: id,
+      latestTracking: latest || null,
+      currentLocation,
+    });
+  } catch (error) {
+    console.error('Get latest tracking error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   placeOrder,
@@ -650,4 +889,8 @@ module.exports = {
   updateOrderStatus,
   getOrderTracking,
   addTrackingUpdate,
+  getAvailableDeliveryMen,
+  assignDeliveryMan,
+  updateDeliveryLocation,
+  getLatestTracking,
 };

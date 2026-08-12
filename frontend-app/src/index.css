@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  /* Your existing custom colors */
   --color-agri-50: #f2fcf1;
   --color-agri-100: #e1f8df;
   --color-agri-200: #c3eebf;
@@ -29,6 +30,26 @@
   --color-cream-100: #f5f3ec;
   --color-cream-200: #ece7d8;
   --color-cream-300: #ded6bf;
+
+  /* NEW: shadcn/ui default theme variables (required by Select, Dialog, etc.) */
+  --color-background: #ffffff;
+  --color-foreground: #1c1917;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1c1917;
+  --color-card: #ffffff;
+  --color-card-foreground: #1c1917;
+  --color-muted: #f5f5f4;
+  --color-muted-foreground: #78716c;
+  --color-accent: #f5f5f4;
+  --color-accent-foreground: #1c1917;
+  --color-border: #e7e5e4;
+  --color-input: #e7e5e4;
+  --color-ring: #a8a29e;
+  --color-primary: #1f5b1c;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f4;
+  --color-secondary-foreground: #1c1917;
+  --color-destructive: #ef4444;
 }
 
 body {

@@ -4,6 +4,7 @@ const compression = require('compression');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const deliveryRoutes = require('./routes/deliveryRoutes');
 
 const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoutes');
@@ -26,7 +27,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/messages', messageRoutes);
-
+app.use('/api/delivery', deliveryRoutes);
 app.get('/', (req, res) => {
   res.send('AgriSync API (Supabase + Prisma) is running');
 });

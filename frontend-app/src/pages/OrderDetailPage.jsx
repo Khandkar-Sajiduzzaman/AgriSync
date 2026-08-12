@@ -1,6 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getOrderById, getOrderTracking, updateOrderStatus } from "../api/orderApi";
+import {
+  getOrderById,
+  getOrderTracking,
+  updateOrderStatus,
+  getLatestTracking,
+  getAvailableDeliveryMen,
+  assignDeliveryMan,
+} from "../api/orderApi";
+
+// Lazy load the map so it doesn't slow down the initial page load
+const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
 
 
 function OrderDetailPage() {
@@ -11,12 +21,45 @@ function OrderDetailPage() {
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
 
+  // NEW: For live GPS tracking and delivery man assignment
+  const [liveLocation, setLiveLocation] = useState(null);
+  const [deliveryMen, setDeliveryMen] = useState([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user.role;
 
   useEffect(() => {
     loadOrder();
   }, [id]);
+
+  // NEW: Poll for live GPS location every 10 seconds
+  // Only runs when the order status is "out_for_delivery" to save bandwidth
+  useEffect(() => {
+    if (!order || order.status !== "out_for_delivery") return;
+
+    let intervalId;
+
+    const pollTracking = async () => {
+      try {
+        const data = await getLatestTracking(id);
+        if (data.currentLocation?.latitude && data.currentLocation?.longitude) {
+          setLiveLocation([data.currentLocation.latitude, data.currentLocation.longitude]);
+        } else if (data.latestTracking) {
+          setLiveLocation([data.latestTracking.latitude, data.latestTracking.longitude]);
+        }
+      } catch (err) {
+        // Silently fail on poll errors (network blips are normal)
+        console.log("Tracking poll error:", err.message);
+      }
+    };
+
+    pollTracking(); // fetch immediately when status changes
+    intervalId = setInterval(pollTracking, 10000); // then every 10 seconds
+
+    return () => clearInterval(intervalId); // cleanup: stop polling when leaving page
+  }, [order?.status, id]);
 
   const loadOrder = async () => {
     setLoading(true);
@@ -48,6 +91,30 @@ function OrderDetailPage() {
     }
   };
 
+  // NEW: Farmer assigns a delivery man to this order
+  const handleAssignDeliveryMan = async (dmId) => {
+    setAssigning(true);
+    try {
+      await assignDeliveryMan(id, dmId);
+      setShowAssignModal(false);
+      await loadOrder(); // refresh to show the assigned delivery man
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // NEW: Fetch the list of available delivery men from the backend
+  const loadDeliveryMen = async () => {
+    try {
+      const data = await getAvailableDeliveryMen();
+      setDeliveryMen(data);
+    } catch (err) {
+      console.log("Failed to load delivery men:", err.message);
+    }
+  };
+
   const statusConfig = {
     pending: { color: "#f59e0b", bg: "#fffbeb", label: "Pending", icon: "⏳" },
     confirmed: { color: "#3b82f6", bg: "#eff6ff", label: "Confirmed", icon: "✓" },
@@ -63,7 +130,10 @@ function OrderDetailPage() {
     const flow = {
       pending: [{ label: "Confirm Order", status: "confirmed", color: "#3b82f6" }],
       confirmed: [{ label: "Start Processing", status: "processing", color: "#8b5cf6" }],
-      processing: [{ label: "Mark as Shipped", status: "shipped", color: "#06b6d4" }],
+      processing: [
+        { label: "Mark as Shipped", status: "shipped", color: "#06b6d4" },
+        { label: "Assign Delivery Man", action: "assign", color: "#f59e0b" },
+      ],
     };
     return flow[currentStatus] || [];
   };
@@ -440,9 +510,16 @@ function OrderDetailPage() {
             {role === "farmer" &&
               getFarmerActions(order.status).map((action) => (
                 <button
-                  key={action.status}
-                  onClick={() => handleStatusUpdate(action.status, `${action.label} by farmer`)}
-                  disabled={updating}
+                  key={action.status || action.action}
+                  onClick={() => {
+                    if (action.action === "assign") {
+                      loadDeliveryMen(); // fetch available delivery men
+                      setShowAssignModal(true); // show the popup
+                    } else {
+                      handleStatusUpdate(action.status, `${action.label} by farmer`);
+                    }
+                  }}
+                  disabled={updating || assigning}
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -457,7 +534,7 @@ function OrderDetailPage() {
                     boxShadow: `0 4px 12px ${action.color}40`,
                   }}
                 >
-                  {updating ? "Updating..." : `${action.label} →`}
+                  {updating || assigning ? "Updating..." : `${action.label} →`}
                 </button>
               ))}
 
@@ -481,25 +558,88 @@ function OrderDetailPage() {
                 )}
               </div>
             )}
+
+            {/* NEW: Assign Delivery Man Modal */}
+            {showAssignModal && (
+              <div style={{ marginTop: "16px", padding: "16px", background: "#fffbeb", borderRadius: "10px", border: "1px solid #fcd34d" }}>
+                <p style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#92400e" }}>
+                  Select a Delivery Partner
+                </p>
+                {deliveryMen.length === 0 ? (
+                  <p style={{ fontSize: "13px", color: "#92400e" }}>No available delivery men right now.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {deliveryMen.map((dm) => (
+                      <button
+                        key={dm._id}
+                        onClick={() => handleAssignDeliveryMan(dm._id)}
+                        disabled={assigning}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "10px 12px",
+                          background: "white",
+                          border: "1px solid #fcd34d",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                        }}
+                      >
+                        <span style={{ fontWeight: "600" }}>{dm.name}</span>
+                        <span style={{ color: "#92400e", fontSize: "12px" }}>
+                          {dm.deliveryManProfile?.vehicleType || "Vehicle"} • {dm.phone || "No phone"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  style={{
+                    marginTop: "10px",
+                    padding: "8px 16px",
+                    background: "transparent",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    color: "#6b7280",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Live Tracking (if available) */}
-          {tracking?.trackingUpdates?.length > 0 && (
+          {/* NEW: Live Map Tracking */}
+          {(order.status === "out_for_delivery" || order.status === "shipped" || order.status === "delivered") && (
             <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
               <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6" }}>
-                <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>📍 Live Tracking</h3>
+                <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>
+                  📍 Live Tracking
+                  {order.status === "out_for_delivery" && (
+                    <span style={{ marginLeft: "8px", fontSize: "12px", color: "#10b981", fontWeight: "500" }}>
+                      ● Live
+                    </span>
+                  )}
+                </h3>
               </div>
               <div style={{ padding: "16px 24px" }}>
-                {tracking.trackingUpdates.slice(-3).map((update) => (
-                  <div key={update.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f9fafb" }}>
-                    <span style={{ fontSize: "13px", color: "#4b5563" }}>
-                      Lat: {update.latitude.toFixed(4)}, Lng: {update.longitude.toFixed(4)}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#9ca3af" }}>
-                      {new Date(update.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                ))}
+                <Suspense fallback={<div style={{ height: "300px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>Loading map...</div>}>
+                  <LiveMap
+                    deliveryPosition={liveLocation}
+                    buyerPosition={order.buyer?.latitude && order.buyer?.longitude ? [order.buyer.latitude, order.buyer.longitude] : null}
+                    farmerPosition={order.farmer?.latitude && order.farmer?.longitude ? [order.farmer.latitude, order.farmer.longitude] : null}
+                  />
+                </Suspense>
+
+                {liveLocation && (
+                  <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#6b7280", textAlign: "center" }}>
+                    Last updated: {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </p>
+                )}
               </div>
             </div>
           )}
