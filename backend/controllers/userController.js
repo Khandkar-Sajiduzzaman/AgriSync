@@ -11,7 +11,6 @@ const withId = (obj) => (obj ? { ...obj, _id: obj.id } : obj);
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role, phone, address, vehicleType, licenseNumber } = req.body;
-
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'Name, email, password, and role are required' });
     }
