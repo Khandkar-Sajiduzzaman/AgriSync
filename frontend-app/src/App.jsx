@@ -104,16 +104,16 @@ function App() {
           element={role === "buyer" ? <CheckoutPage /> : <Navigate to="/" replace />}
         />
 
-        {/* NEW: Orders (Buyer + Farmer + Delivery Man) */}
+        {/* Orders (Buyer + Farmer only. Delivery men use /delivery instead) */}
         <Route
           path="/orders"
-          element={role === "buyer" || role === "farmer" || role === "delivery_man" ? <OrdersPage /> : <Navigate to="/" replace />}
+          element={role === "buyer" || role === "farmer" ? <OrdersPage /> : <Navigate to="/delivery" replace />}
         />
 
-        {/* NEW: Order Detail (Buyer + Farmer + Delivery Man) */}
+        {/* Order Detail (Buyer + Farmer only. Delivery men use /delivery) */}
         <Route
           path="/orders/:id"
-          element={role === "buyer" || role === "farmer" || role === "delivery_man" ? <OrderDetailPage /> : <Navigate to="/" replace />}
+          element={role === "buyer" || role === "farmer" ? <OrderDetailPage /> : <Navigate to="/delivery" replace />}
         />
         {/* Delivery Man Dashboard */}
         <Route
