@@ -1,19 +1,24 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { getProducts } from "../api/productApi"
+import { getProducts, getRecommendations } from "../api/productApi"
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, User, Search, PlusCircle, PackageOpen, Heart } from "lucide-react"
+import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles } from "lucide-react"
 import { FaTruck } from "react-icons/fa"
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user"))
   const role = user?.role
   const [products, setProducts] = useState([])
+  const [recommendations, setRecommendations] = useState([])
+  const [recLoading, setRecLoading] = useState(false)
 
   useEffect(() => {
     loadProducts()
+    if (role === "buyer") {
+      loadRecommendations()
+    }
   }, [])
 
   const loadProducts = async () => {
@@ -22,6 +27,18 @@ function Dashboard() {
       setProducts(response.data || [])
     } catch (err) {
       console.log(err)
+    }
+  }
+
+  const loadRecommendations = async () => {
+    setRecLoading(true)
+    try {
+      const data = await getRecommendations()
+      setRecommendations(data || [])
+    } catch (err) {
+      console.error("Failed to load recommendations:", err)
+    } finally {
+      setRecLoading(false)
     }
   }
 
@@ -53,7 +70,35 @@ function Dashboard() {
         )}
       </div>
 
-      {/* Featured Products — only for buyers and farmers */}
+      {/* RECOMMENDED FOR YOU — only for buyers */}
+      {role === "buyer" && (
+        <section>
+          <h2 className="text-2xl font-bold text-agri-800 mb-4 flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-yellow-500" /> Recommended for You
+          </h2>
+          {recLoading ? (
+            <Card>
+              <CardContent className="p-12 text-center text-stone-500">
+                Loading recommendations...
+              </CardContent>
+            </Card>
+          ) : recommendations.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-stone-500">
+                Start browsing and adding items to your wishlist to get personalized recommendations!
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recommendations.map((product) => (
+                <ProductCard key={product._id} product={product} showActions={false} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Featured Products — for everyone except delivery_man */}
       {role !== "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Featured Products</h2>
@@ -73,7 +118,7 @@ function Dashboard() {
         </section>
       )}
 
-      {/* Delivery Man — quick stats instead of products */}
+      {/* Delivery Man stats */}
       {role === "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Today's Overview</h2>

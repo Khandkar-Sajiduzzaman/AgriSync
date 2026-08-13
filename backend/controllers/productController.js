@@ -200,40 +200,57 @@ const uploadProductImage = async (req, res) => {
   }
 };
 
-// ===== SMART RECOMMENDATIONS (from prome_1 branch) =====
+// ===== SMART RECOMMENDATIONS (with Wishlist weighting) =====
 const getRecommendations = async (req, res) => {
   try {
     let recommended = [];
     const limit = 6;
 
     if (req.user && req.user.role === 'buyer') {
-      const orders = await prisma.order.findMany({
-        where: { buyerId: req.user.id },
-        include: { items: { include: { product: true } } }
-      });
+      // 1. Fetch buyer's past orders, views, AND wishlist
+      const [orders, views, wishlist] = await Promise.all([
+        prisma.order.findMany({
+          where: { buyerId: req.user.id },
+          include: { items: { include: { product: true } } }
+        }).catch(() => []),
+        prisma.productView.findMany({
+          where: { buyerId: req.user.id },
+          include: { product: true }
+        }).catch(() => []),
+        prisma.wishlist.findMany({
+          where: { buyerId: req.user.id },
+          include: { product: true }
+        }).catch(() => []),
+      ]);
 
-      const views = await prisma.productView.findMany({
-        where: { buyerId: req.user.id },
-        include: { product: true }
-      });
-
+      // 2. Weight categories
       const categoryWeights = {};
       
       orders.forEach(order => {
         order.items.forEach(item => {
-          const cat = item.product.legacyCategory;
+          const cat = item.product?.legacyCategory;
           if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 3;
         });
       });
 
       views.forEach(view => {
-        const cat = view.product.legacyCategory;
+        const cat = view.product?.legacyCategory;
         if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 1;
       });
+
+      // NEW: Wishlist adds +2 weight
+      wishlist.forEach(item => {
+        const cat = item.product?.legacyCategory;
+        if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 2;
+      });
+
+      console.log('Recommendation weights for buyer', req.user.id, ':', categoryWeights);
 
       const preferredCategories = Object.keys(categoryWeights)
         .sort((a, b) => categoryWeights[b] - categoryWeights[a])
         .slice(0, 3);
+
+      console.log('Preferred categories:', preferredCategories);
 
       if (preferredCategories.length > 0) {
         recommended = await prisma.product.findMany({
@@ -248,6 +265,7 @@ const getRecommendations = async (req, res) => {
       }
     }
 
+    // Fallback: fill with highest-rated products
     if (recommended.length < limit) {
       const excludeIds = recommended.map(p => p.id);
       const fallbackProducts = await prisma.product.findMany({
@@ -262,6 +280,7 @@ const getRecommendations = async (req, res) => {
       recommended = [...recommended, ...fallbackProducts];
     }
 
+    console.log('Returning', recommended.length, 'recommendations');
     res.json(recommended.map(shapeProduct));
   } catch (error) {
     console.error('Get recommendations error:', error);
@@ -285,7 +304,7 @@ const recordProductView = async (req, res) => {
   }
 };
 
-// ===== EXISTING FUNCTION (from main branch) =====
+// ===== EXISTING FUNCTIONS =====
 const getMyProducts = async (req, res) => {
   try {
     const products = await prisma.product.findMany({
@@ -307,8 +326,6 @@ const getMyProducts = async (req, res) => {
 
 const getProductCategories = async (req, res) => {
   try {
-    // Grab all non-null legacyCategory values, then deduplicate in JS
-    // This is more reliable than Prisma distinct across all versions
     const rows = await prisma.product.findMany({
       where: { legacyCategory: { not: null } },
       select: { legacyCategory: true },
