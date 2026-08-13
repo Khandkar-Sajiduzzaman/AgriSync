@@ -142,7 +142,9 @@ const sendMessage = async (req, res) => {
     });
 
     res.status(201).json(message);
-  } catch (error) {
+  }
+ }
+  catch (error) {
     console.error('Send message error:', error);
     res.status(500).json({ message: 'Failed to send message' });
   }
