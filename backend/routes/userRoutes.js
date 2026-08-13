@@ -19,7 +19,7 @@ const {
 } = require("../controllers/userController");
 
 const { protect } = require("../middleware/authMiddleware");
-const upload = require("../middleware/uploadMiddleware");
+const { upload, processImage } = require("../middleware/uploadMiddleware");
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
@@ -27,7 +27,7 @@ router.post("/login", loginUser);
 // everything below requires a valid login token
 router.get("/profile", protect, getProfile);
 router.put("/profile", protect, updateProfile);
-router.put("/profile/image", protect, upload.single("profileImage"), uploadProfileImage);
+router.put("/profile/image", protect, upload.single("profileImage"), processImage, uploadProfileImage);
 router.delete("/profile", protect, deleteProfile);
 router.put("/wishlist/:productId", protect, toggleWishlist);
 router.get("/wishlist", protect, getWishlist);

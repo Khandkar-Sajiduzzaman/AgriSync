@@ -1,9 +1,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
+const { userCache } = require('../middleware/authMiddleware');
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '30d', // Token dies after 30 days
+  });
 };
 
 const withId = (obj) => (obj ? { ...obj, _id: obj.id } : obj);
@@ -11,11 +14,40 @@ const withId = (obj) => (obj ? { ...obj, _id: obj.id } : obj);
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role, phone, address, vehicleType, licenseNumber } = req.body;
+
+    // SECURITY: Block admin self-registration
+    if (role === 'admin') {
+      return res.status(403).json({ message: 'Invalid role' });
+    }
+
+    // SECURITY: Validate required fields
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'Name, email, password, and role are required' });
     }
 
-    const userExists = await prisma.user.findUnique({ where: { email } });
+    // SECURITY: Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // SECURITY: Validate password strength
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    // SECURITY: Validate name length
+    if (name.trim().length < 2 || name.trim().length > 100) {
+      return res.status(400).json({ message: 'Name must be between 2 and 100 characters' });
+    }
+
+    // SECURITY: Validate role is one of allowed values
+    const allowedRoles = ['buyer', 'farmer', 'delivery_man'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ message: 'Role must be buyer, farmer, or delivery_man' });
+    }
+
+    const userExists = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (userExists) {
       return res.status(400).json({ message: 'An account with this email already exists' });
     }
@@ -23,16 +55,15 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user + role-specific profile in a transaction
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
-          name,
-          email,
+          name: name.trim(),
+          email: email.toLowerCase().trim(),
           password: hashedPassword,
           role,
-          phone: phone || '',
-          address: address || '',
+          phone: phone ? phone.trim().slice(0, 20) : '',
+          address: address ? address.trim().slice(0, 255) : '',
         },
         select: {
           id: true,
@@ -42,7 +73,6 @@ const registerUser = async (req, res) => {
         },
       });
 
-      // Create the matching profile based on role
       if (role === 'farmer') {
         await tx.farmerProfile.create({
           data: { userId: newUser.id },
@@ -55,8 +85,8 @@ const registerUser = async (req, res) => {
         await tx.deliveryManProfile.create({
           data: {
             userId: newUser.id,
-            vehicleType: vehicleType || null,
-            licenseNumber: licenseNumber || null,
+            vehicleType: vehicleType ? vehicleType.trim().slice(0, 50) : null,
+            licenseNumber: licenseNumber ? licenseNumber.trim().slice(0, 50) : null,
           },
         });
       }
@@ -70,7 +100,7 @@ const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Registration failed' });
   }
 };
 
@@ -103,15 +133,34 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const { name, phone, address, bio, password } = req.body;
+    const { name, phone, address, bio, password, currentPassword } = req.body;
     const data = {};
 
-    if (name !== undefined) data.name = name;
-    if (phone !== undefined) data.phone = phone;
-    if (address !== undefined) data.address = address;
-    if (bio !== undefined) data.bio = bio;
+    if (name !== undefined) {
+      if (name.trim().length < 2 || name.trim().length > 100) {
+        return res.status(400).json({ message: 'Name must be between 2 and 100 characters' });
+      }
+      data.name = name.trim();
+    }
+    if (phone !== undefined) data.phone = phone.trim().slice(0, 20);
+    if (address !== undefined) data.address = address.trim().slice(0, 255);
+    if (bio !== undefined) data.bio = bio.trim().slice(0, 2000);
 
+    // SECURITY: Require current password to set new password
     if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ message: 'New password must be at least 6 characters' });
+      }
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Current password is required to change password' });
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
+
       const salt = await bcrypt.genSalt(10);
       data.password = await bcrypt.hash(password, salt);
     }
@@ -131,16 +180,18 @@ const updateProfile = async (req, res) => {
       },
     });
 
+    userCache.delete(req.user.id); 
+
     res.json(withId(updatedUser));
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to update profile' });
   }
 };
 
 const uploadProfileImage = async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.processedFile) {
       return res.status(400).json({ message: 'No image file was uploaded' });
     }
 
@@ -150,12 +201,15 @@ const uploadProfileImage = async (req, res) => {
       select: { profileImage: true },
     });
 
+    userCache.delete(req.user.id); // <-- ADD THIS LINE
+
     res.json(updatedUser);
   } catch (error) {
     console.error('Upload image error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to upload image' });
   }
 };
+
 
 const deleteProfile = async (req, res) => {
   try {

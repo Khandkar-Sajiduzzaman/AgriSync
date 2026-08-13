@@ -10,17 +10,17 @@ function DeliveryDashboard() {
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
 
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      const data = await getMyOrders();
-      setOrders(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+const loadOrders = async () => {
+  setLoading(true);
+  try {
+    const result = await getMyOrders();
+    setOrders(result.data || []); // Extract array from paginated response
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     loadOrders();

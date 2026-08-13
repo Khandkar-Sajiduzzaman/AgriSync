@@ -1,25 +1,41 @@
 const prisma = require('../config/db');
 
-const shapeProduct = (product) => {
-  if (!product) return product;
-  return {
-    ...product,
-    _id: product.id,
-    category: product.legacyCategory,
-    price: product.price?.toNumber ? product.price.toNumber() : product.price,
-    farmer: product.farmer
-      ? { ...product.farmer, _id: product.farmer.id }
-      : product.farmer,
-  };
-};
+// Helper: convert Prisma Decimal to plain number + add _id alias for frontend compatibility
+const shapeProduct = (product) => ({
+  ...product,
+  _id: product.id,
+  id: undefined,
+  farmer: product.farmer
+    ? {
+        _id: product.farmer.id,
+        name: product.farmer.name,
+        // SECURITY: Removed email, phone, address from public view
+      }
+    : null,
+});
 
 const createProduct = async (req, res) => {
   try {
+    // SECURITY & BUG FIX: Destructure FIRST, then validate
+    const { name, description, category, price, stock } = req.body;
+
+    if (!name || name.trim().length < 2 || name.trim().length > 200) {
+      return res.status(400).json({ message: 'Name must be 2-200 characters' });
+    }
+
+    const productPrice = parseFloat(price);
+    if (isNaN(productPrice) || productPrice < 0 || productPrice > 1000000) {
+      return res.status(400).json({ message: 'Invalid price' });
+    }
+
+    const productStock = parseInt(stock) || 0;
+    if (productStock < 0 || productStock > 1000000) {
+      return res.status(400).json({ message: 'Invalid stock' });
+    }
+
     if (req.user.role !== 'farmer') {
       return res.status(403).json({ message: 'Only farmers can add products' });
     }
-
-    const { name, description, category, price, stock } = req.body;
 
     if (!name || !category || price === undefined) {
       return res.status(400).json({ message: 'Name, category and price are required' });
@@ -28,20 +44,20 @@ const createProduct = async (req, res) => {
     const product = await prisma.product.create({
       data: {
         farmerId: req.user.id,
-        name,
-        description: description || '',
+        name: name.trim(),
+        description: description ? description.trim() : '',
         legacyCategory: category,
-        price: parseFloat(price),
-        stock: parseInt(stock) || 0,
+        price: productPrice,
+        stock: productStock,
         images: [],
       },
-      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true } } }, // SECURITY: no email/phone
     });
 
     res.status(201).json(shapeProduct(product));
   } catch (error) {
     console.error('Create product error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to create product' });
   }
 };
 
@@ -64,14 +80,8 @@ const getProducts = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    if (farmer) {
-      where.farmer = {
-        name: { contains: farmer, mode: 'insensitive' }
-      };
-    }
-
-    const currentPage = parseInt(page) || 1;
-    const pageSize = parseInt(limit) || 12;
+    const currentPage = Math.max(1, parseInt(page) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit) || 12)); // SECURITY: Cap max page size
     const skip = (currentPage - 1) * pageSize;
 
     const [products, total] = await Promise.all([
@@ -79,7 +89,7 @@ const getProducts = async (req, res) => {
         where,
         include: {
           farmer: {
-            select: { id: true, name: true }
+            select: { id: true, name: true } // SECURITY: Removed email, phone, address
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -97,7 +107,7 @@ const getProducts = async (req, res) => {
     });
   } catch (error) {
     console.error('Get products error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch products' });
   }
 };
 
@@ -105,7 +115,11 @@ const getProductById = async (req, res) => {
   try {
     const product = await prisma.product.findUnique({
       where: { id: req.params.id },
-      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
+      include: { 
+        farmer: { 
+          select: { id: true, name: true } // SECURITY: Removed email, phone, address
+        } 
+      },
     });
 
     if (!product) {
@@ -115,7 +129,7 @@ const getProductById = async (req, res) => {
     res.json(shapeProduct(product));
   } catch (error) {
     console.error('Get product error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch product' });
   }
 };
 
@@ -134,22 +148,39 @@ const updateProduct = async (req, res) => {
     const { name, description, category, price, stock } = req.body;
     const data = {};
 
-    if (name !== undefined) data.name = name;
-    if (description !== undefined) data.description = description;
+    if (name !== undefined) {
+      if (name.trim().length < 2 || name.trim().length > 200) {
+        return res.status(400).json({ message: 'Name must be 2-200 characters' });
+      }
+      data.name = name.trim();
+    }
+    if (description !== undefined) data.description = description.trim();
     if (category !== undefined) data.legacyCategory = category;
-    if (price !== undefined) data.price = parseFloat(price);
-    if (stock !== undefined) data.stock = parseInt(stock);
+    if (price !== undefined) {
+      const productPrice = parseFloat(price);
+      if (isNaN(productPrice) || productPrice < 0 || productPrice > 1000000) {
+        return res.status(400).json({ message: 'Invalid price' });
+      }
+      data.price = productPrice;
+    }
+    if (stock !== undefined) {
+      const productStock = parseInt(stock);
+      if (isNaN(productStock) || productStock < 0 || productStock > 1000000) {
+        return res.status(400).json({ message: 'Invalid stock' });
+      }
+      data.stock = productStock;
+    }
 
     const updated = await prisma.product.update({
       where: { id: req.params.id },
       data,
-      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true } } },
     });
 
     res.json(shapeProduct(updated));
   } catch (error) {
     console.error('Update product error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to update product' });
   }
 };
 
@@ -165,134 +196,118 @@ const deleteProduct = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    await prisma.product.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Product deleted successfully' });
+    // SECURITY: Prevent deleting products in active orders
+    const activeOrderItem = await prisma.orderItem.findFirst({
+      where: {
+        productId: req.params.id,
+        order: { status: { notIn: ['cancelled', 'refunded', 'delivered'] } },
+      },
+    });
+
+    if (activeOrderItem) {
+      return res.status(400).json({ message: 'Cannot delete product with active orders' });
+    }
+
+    // SECURITY: Soft delete so past orders still show product info
+    await prisma.product.update({
+      where: { id: req.params.id },
+      data: { isRemoved: true },
+    });
+
+    res.json({ message: 'Product removed successfully' });
   } catch (error) {
     console.error('Delete product error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to delete product' });
   }
 };
 
 const uploadProductImage = async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.processedFile) {
       return res.status(400).json({ message: 'No image uploaded' });
     }
 
     const product = await prisma.product.findUnique({ where: { id: req.params.id } });
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+    if (product.farmerId !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
 
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    if (product.farmerId !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized' });
-    }
-
-    const updatedImages = [...product.images, `/uploads/${req.file.filename}`];
+    const updatedImages = [...product.images, `/uploads/${req.processedFile.filename}`];
 
     const updated = await prisma.product.update({
       where: { id: req.params.id },
       data: { images: updatedImages },
-      include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } },
+      include: { farmer: { select: { id: true, name: true } } }
     });
 
     res.json(shapeProduct(updated));
   } catch (error) {
     console.error('Upload product image error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to upload image' });
   }
 };
 
-// ===== FIXED SMART RECOMMENDATIONS =====
+// ===== SMART RECOMMENDATIONS =====
 const getRecommendations = async (req, res) => {
   try {
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ message: 'Only buyers can get recommendations' });
+    }
+
+    // BUG FIX: Use productView (not productInteraction, which doesn't exist in schema)
+    const interactions = await prisma.productView.findMany({
+      where: { buyerId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    const viewedProductIds = interactions.map((i) => i.productId);
+    const uniqueViewed = [...new Set(viewedProductIds)];
+
     let recommended = [];
-    const limit = 6;
-
-    if (req.user && req.user.role === 'buyer') {
-      const [orders, views, wishlist] = await Promise.all([
-        prisma.order.findMany({
-          where: { buyerId: req.user.id },
-          include: { items: { include: { product: true } } }
-        }).catch(() => []),
-        prisma.productView.findMany({
-          where: { buyerId: req.user.id },
-          include: { product: true }
-        }).catch(() => []),
-        prisma.wishlist.findMany({
-          where: { userId: req.user.id },
-          include: { product: true }
-        }).catch(() => []),
-      ]);
-
-      const categoryWeights = {};
-      
-      orders.forEach(order => {
-        order.items.forEach(item => {
-          const cat = item.product?.legacyCategory?.trim();
-          if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 3;
-        });
+    if (uniqueViewed.length > 0) {
+      const lastViewed = await prisma.product.findUnique({
+        where: { id: uniqueViewed[0] },
       });
 
-      views.forEach(view => {
-        const cat = view.product?.legacyCategory?.trim();
-        if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 1;
-      });
-
-      wishlist.forEach(item => {
-        const cat = item.product?.legacyCategory?.trim();
-        if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 5;
-      });
-
-      console.log('Recommendation weights for buyer', req.user.id, ':', categoryWeights);
-
-      const sortedCategories = Object.entries(categoryWeights)
-        .sort((a, b) => b[1] - a[1])
-        .map(([cat]) => cat)
-        .slice(0, 3);
-
-      console.log('Preferred categories (in order):', sortedCategories);
-
-      // FIXED: Cap each category so we get a MIX
-      // Top category: 3 slots, Second: 2 slots, Third: 1 slot
-      const categoryLimits = [3, 2, 1];
-
-      for (let i = 0; i < sortedCategories.length; i++) {
-        const cat = sortedCategories[i];
-        const needed = limit - recommended.length;
-        if (needed <= 0) break;
-
-        const catLimit = Math.min(categoryLimits[i] || 1, needed);
-
-        const catProducts = await prisma.product.findMany({
+      if (lastViewed) {
+        recommended = await prisma.product.findMany({
           where: {
-            legacyCategory: cat,
             isAvailable: true,
-            id: { notIn: recommended.length > 0 ? recommended.map(p => p.id) : undefined }
+            isRemoved: false,
+            isApproved: true,
+            id: { notIn: uniqueViewed },
+            OR: [
+              { legacyCategory: lastViewed.legacyCategory },
+              { category: lastViewed.category },
+            ],
           },
-          orderBy: { averageRating: 'desc' },
-          take: catLimit,
-          include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } }
+          include: {
+            farmer: {
+              select: { id: true, name: true } // SECURITY: no email/phone
+            },
+          },
+          take: 8,
         });
 
         recommended.push(...catProducts);
       }
     }
 
-    // Fallback: fill remaining slots with globally highest-rated
-    if (recommended.length < limit) {
-      const excludeIds = recommended.map(p => p.id);
-      const fallbackProducts = await prisma.product.findMany({
+    if (recommended.length === 0) {
+      recommended = await prisma.product.findMany({
         where: {
           isAvailable: true,
-          id: { notIn: excludeIds.length ? excludeIds : undefined }
+          isRemoved: false,
+          isApproved: true,
         },
-        orderBy: { averageRating: 'desc' },
-        take: limit - recommended.length,
-        include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } }
+        include: {
+          farmer: {
+            select: { id: true, name: true } // SECURITY: no email/phone
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
       });
-      recommended = [...recommended, ...fallbackProducts];
     }
 
     console.log('Returning', recommended.length, 'recommendations');
@@ -300,7 +315,7 @@ const getRecommendations = async (req, res) => {
     res.json(recommended.map(shapeProduct));
   } catch (error) {
     console.error('Get recommendations error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to load recommendations' });
   }
 };
 
@@ -326,7 +341,7 @@ const getMyProducts = async (req, res) => {
       where: { farmerId: req.user.id },
       include: {
         farmer: {
-          select: { id: true, name: true, email: true, phone: true, address: true }
+          select: { id: true, name: true } // SECURITY: removed email, phone, address
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -335,7 +350,7 @@ const getMyProducts = async (req, res) => {
     res.json(products.map(shapeProduct));
   } catch (error) {
     console.error('Get my products error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch products' });
   }
 };
 
@@ -350,7 +365,7 @@ const getProductCategories = async (req, res) => {
     res.json(uniqueCategories);
   } catch (error) {
     console.error('Get categories error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch categories' });
   }
 };
 

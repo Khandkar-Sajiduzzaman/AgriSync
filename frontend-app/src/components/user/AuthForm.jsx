@@ -138,7 +138,6 @@ function AuthForm({ onAuthSuccess }) {
                       <SelectItem value="buyer">Buyer</SelectItem>
                       <SelectItem value="farmer">Farmer</SelectItem>
                       <SelectItem value="delivery_man">Delivery Man</SelectItem>
-                      <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

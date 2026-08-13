@@ -10,8 +10,10 @@ const {
   addTrackingUpdate,
   getAvailableDeliveryMen,
   assignDeliveryMan,
+  updateDeliveryLocation,
   getLatestTracking,
-} = require("../controllers/orderController");
+  getDeliveryLocation,
+} = require('../controllers/orderController');
 
 const { protect } = require("../middleware/authMiddleware");
 
@@ -26,7 +28,7 @@ router.get("/:id", protect, getOrderById);
 router.put("/:id/status", protect, updateOrderStatus);
 router.put("/:id/assign-delivery", protect, assignDeliveryMan);
 router.get("/:id/latest-tracking", protect, getLatestTracking);
-
+router.get('/delivery/location/:userId', protect, getDeliveryLocation);
 router.route("/:id/tracking")
   .get(protect, getOrderTracking)
   .post(protect, addTrackingUpdate);

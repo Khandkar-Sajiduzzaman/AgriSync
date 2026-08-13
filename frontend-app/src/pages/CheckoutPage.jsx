@@ -14,7 +14,9 @@ function CheckoutPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
-  const { refreshCart } = useCart();
+  
+  // BUG FIX: Destructure BOTH clearCart and refreshCart from context
+  const { clearCart, refreshCart } = useCart();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
@@ -44,17 +46,24 @@ function CheckoutPage() {
     }
     setPlacing(true);
     setError("");
+    console.log('Checkout: Placing order...');
+    
     try {
       const data = await placeOrder({
         deliveryAddress,
         deliveryNotes,
         paymentMethod,
+        deliveryFee,        // Send delivery fee to backend
+        discountAmount: 0,
       });
+      console.log('Checkout: Order placed successfully!', data);
       setSuccess(data);
       refreshCart();
     } catch (err) {
+      console.error('Checkout: Error placing order:', err.message);
       setError(err.message);
     } finally {
+      console.log('Checkout: Setting placing to false');
       setPlacing(false);
     }
   };
@@ -74,7 +83,7 @@ function CheckoutPage() {
         <h1 style={{ color: "#27ae60", margin: "0 0 10px 0" }}>Order Placed!</h1>
         <p style={{ color: "#666", marginBottom: "25px" }}>Thank you for shopping with AgriSync.</p>
 
-        {success.orders.map((order) => (
+        {success.orders?.map((order) => (
           <div
             key={order._id}
             style={{

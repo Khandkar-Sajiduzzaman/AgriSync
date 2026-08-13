@@ -49,6 +49,10 @@ function ProfilePage() {
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+      setStatus("Image must be smaller than 2MB");
+      return;
+    }
     try {
       const { profileImage } = await uploadProfileImage(file);
       setProfile((prev) => ({ ...prev, profileImage }));
