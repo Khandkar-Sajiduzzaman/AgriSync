@@ -24,7 +24,7 @@ export const createProduct = async (productData) => {
   return data;
 };
 
-// Get distinct categories (lightweight — for browse page filter dropdown)
+// Get distinct categories
 export const getCategories = async () => {
   const response = await fetch(`${API_URL}/categories`);
   const data = await response.json();
@@ -42,9 +42,8 @@ export const getProducts = async (filters = {}) => {
   if (filters.category) params.append("category", filters.category);
   if (filters.minPrice) params.append("minPrice", filters.minPrice);
   if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+  if (filters.farmer) params.append("farmer", filters.farmer);
   if (filters.page) params.append("page", filters.page);
-  if (filters.limit) params.append("limit", filters.limit);
-  // limit is optional; default is 12
 
   const query = params.toString();
   const response = await fetch(query ? `${API_URL}?${query}` : API_URL);
@@ -129,7 +128,7 @@ export const uploadProductImage = async (id, imageFile) => {
   return data;
 };
 
-// Get Smart Recommendations (from prome_1 branch)
+// Get Smart Recommendations
 export const getRecommendations = async () => {
   const response = await fetch(`${API_URL}/recommendations`, {
     headers: {
@@ -144,7 +143,7 @@ export const getRecommendations = async () => {
   return data;
 };
 
-// Record Product View (from prome_1 branch)
+// Record Product View
 export const recordProductView = async (id) => {
   try {
     await fetch(`${API_URL}/${id}/view`, {
@@ -158,7 +157,7 @@ export const recordProductView = async (id) => {
   }
 };
 
-// Get My Products (from main branch)
+// Get My Products
 export const getMyProducts = async () => {
   const response = await fetch(`${API_URL}/my`, {
     headers: {
