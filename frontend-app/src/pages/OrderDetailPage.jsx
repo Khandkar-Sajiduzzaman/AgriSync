@@ -9,9 +9,7 @@ import {
   assignDeliveryMan,
 } from "../api/orderApi";
 
-// Lazy load the map so it doesn't slow down the initial page load
 const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
-
 
 function OrderDetailPage() {
   const { id } = useParams();
@@ -21,7 +19,6 @@ function OrderDetailPage() {
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
 
-  // NEW: For live GPS tracking and delivery man assignment
   const [liveLocation, setLiveLocation] = useState(null);
   const [deliveryMen, setDeliveryMen] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -30,12 +27,31 @@ function OrderDetailPage() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user.role;
 
-  useEffect(() => {
-    loadOrder();
+  // BUG FIX: Define loadOrder BEFORE any useEffect uses it
+  const loadOrder = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await getOrderById(id);
+      setOrder(data);
+      try {
+        const trackData = await getOrderTracking(id);
+        setTracking(trackData);
+      } catch {
+        setTracking(null);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load order");
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
-  // NEW: Poll for live GPS location every 10 seconds
-  // Only runs when the order status is "out_for_delivery" to save bandwidth
+  useEffect(() => {
+    loadOrder();
+  }, [loadOrder]);
+
+  // Poll for live GPS when order is out_for_delivery
   useEffect(() => {
     if (!order || order.status !== "out_for_delivery") return;
 
@@ -50,62 +66,43 @@ function OrderDetailPage() {
           setLiveLocation([data.latestTracking.latitude, data.latestTracking.longitude]);
         }
       } catch (err) {
-        // Silently fail on poll errors (network blips are normal)
         console.log("Tracking poll error:", err.message);
       }
     };
 
-    pollTracking(); // fetch immediately when status changes
-    intervalId = setInterval(pollTracking, 10000); // then every 10 seconds
+    pollTracking();
+    intervalId = setInterval(pollTracking, 10000);
 
-    return () => clearInterval(intervalId); // cleanup: stop polling when leaving page
+    return () => clearInterval(intervalId);
   }, [order?.status, id]);
-
-  const loadOrder = async () => {
-    setLoading(true);
-    try {
-      const data = await getOrderById(id);
-      setOrder(data);
-      try {
-        const trackData = await getOrderTracking(id);
-        setTracking(trackData);
-      } catch {
-        setTracking(null);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleStatusUpdate = async (newStatus, notes) => {
     setUpdating(true);
+    setError("");
     try {
       await updateOrderStatus(id, { status: newStatus, notes });
       await loadOrder();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to update status");
     } finally {
       setUpdating(false);
     }
   };
 
-  // NEW: Farmer assigns a delivery man to this order
   const handleAssignDeliveryMan = async (dmId) => {
     setAssigning(true);
+    setError("");
     try {
       await assignDeliveryMan(id, dmId);
       setShowAssignModal(false);
-      await loadOrder(); // refresh to show the assigned delivery man
+      await loadOrder();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to assign delivery man");
     } finally {
       setAssigning(false);
     }
   };
 
-  // NEW: Fetch the list of available delivery men from the backend
   const loadDeliveryMen = async () => {
     try {
       const data = await getAvailableDeliveryMen();
@@ -178,7 +175,6 @@ function OrderDetailPage() {
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 20px" }}>
-      {/* Back Button */}
       <Link to="/orders" style={{ textDecoration: "none" }}>
         <button
           style={{
@@ -199,7 +195,6 @@ function OrderDetailPage() {
         </button>
       </Link>
 
-      {/* Header Card */}
       <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", marginBottom: "24px" }}>
         <div style={{ padding: "28px 32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
           <div>
@@ -238,7 +233,6 @@ function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Progress Tracker (only for non-cancelled orders) */}
       {order.status !== "cancelled" && order.status !== "refunded" && (
         <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "28px 32px", marginBottom: "24px", overflowX: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", minWidth: "600px" }}>
@@ -301,11 +295,8 @@ function OrderDetailPage() {
         </div>
       )}
 
-      {/* Two Column Layout */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "24px" }}>
-        {/* Left: Order Info */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {/* Items */}
           <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6" }}>
               <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>Order Items</h3>
@@ -347,7 +338,6 @@ function OrderDetailPage() {
                 </div>
               ))}
             </div>
-            {/* Totals */}
             <div style={{ padding: "16px 24px", background: "#f9fafb", borderTop: "1px solid #f3f4f6" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
                 <span style={{ fontSize: "14px", color: "#6b7280" }}>Subtotal</span>
@@ -372,7 +362,6 @@ function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Status History */}
           <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6" }}>
               <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>Status History</h3>
@@ -429,9 +418,7 @@ function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Right: Delivery & Actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {/* Delivery Info */}
           <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6" }}>
               <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>Delivery Information</h3>
@@ -480,11 +467,9 @@ function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Actions */}
           <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "24px" }}>
             <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>Actions</h3>
 
-            {/* Buyer Cancel */}
             {role === "buyer" && order.status === "pending" && (
               <button
                 onClick={() => handleStatusUpdate("cancelled", "Cancelled by buyer")}
@@ -506,15 +491,14 @@ function OrderDetailPage() {
               </button>
             )}
 
-            {/* Farmer Actions */}
             {role === "farmer" &&
               getFarmerActions(order.status).map((action) => (
                 <button
                   key={action.status || action.action}
                   onClick={() => {
                     if (action.action === "assign") {
-                      loadDeliveryMen(); // fetch available delivery men
-                      setShowAssignModal(true); // show the popup
+                      loadDeliveryMen();
+                      setShowAssignModal(true);
                     } else {
                       handleStatusUpdate(action.status, `${action.label} by farmer`);
                     }
@@ -559,7 +543,6 @@ function OrderDetailPage() {
               </div>
             )}
 
-            {/* NEW: Assign Delivery Man Modal */}
             {showAssignModal && (
               <div style={{ marginTop: "16px", padding: "16px", background: "#fffbeb", borderRadius: "10px", border: "1px solid #fcd34d" }}>
                 <p style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#92400e" }}>
@@ -613,7 +596,6 @@ function OrderDetailPage() {
             )}
           </div>
 
-          {/* NEW: Live Map Tracking */}
           {(order.status === "out_for_delivery" || order.status === "shipped" || order.status === "delivered") && (
             <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
               <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6" }}>

@@ -20,16 +20,17 @@ const shapeProduct = (product) => {
 const addToCart = async (req, res) => {
   try {
     if (req.user.role !== 'buyer') {
-      return res.status(403).json({ message: 'Only buyers can add items to cart' });
+      return res.status(403).json({ message: 'Only buyers can add to cart' });
     }
 
-    const { productId, quantity = 1 } = req.body;
-    const userId = req.user.id;
+    const { productId, quantity } = req.body;
+    const buyerId = req.user.id;
 
     if (!productId) {
-      return res.status(400).json({ message: 'productId is required' });
+      return res.status(400).json({ message: 'Product ID is required' });
     }
 
+    // Fetch product first so we can validate stock and availability
     const product = await prisma.product.findUnique({
       where: { id: productId },
     });
@@ -42,9 +43,10 @@ const addToCart = async (req, res) => {
       return res.status(400).json({ message: 'Product is not available for purchase' });
     }
 
+    // Parse and validate quantity (single declaration only)
     const qty = parseInt(quantity);
-    if (isNaN(qty) || qty < 1) {
-      return res.status(400).json({ message: 'Quantity must be at least 1' });
+    if (isNaN(qty) || qty < 1 || qty > 1000) {
+      return res.status(400).json({ message: 'Quantity must be between 1 and 1000' });
     }
 
     if (qty > product.stock) {
@@ -54,7 +56,7 @@ const addToCart = async (req, res) => {
     }
 
     const existingItem = await prisma.cartItem.findUnique({
-      where: { userId_productId: { userId, productId } },
+      where: { userId_productId: { userId: buyerId, productId } },
     });
 
     let cartItem;
@@ -75,7 +77,7 @@ const addToCart = async (req, res) => {
       });
     } else {
       cartItem = await prisma.cartItem.create({
-        data: { userId, productId, quantity: qty },
+        data: { userId: buyerId, productId, quantity: qty },
         include: { product: { include: { farmer: { select: { id: true, name: true } } } } },
       });
     }
@@ -87,7 +89,7 @@ const addToCart = async (req, res) => {
     });
   } catch (error) {
     console.error('Add to cart error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to add to cart' });
   }
 };
 
@@ -142,7 +144,7 @@ const getCart = async (req, res) => {
     });
   } catch (error) {
     console.error('Get cart error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch cart' });
   }
 };
 
@@ -161,8 +163,8 @@ const updateCartQuantity = async (req, res) => {
     const userId = req.user.id;
 
     const qty = parseInt(quantity);
-    if (isNaN(qty) || qty < 1) {
-      return res.status(400).json({ message: 'Quantity must be at least 1' });
+    if (isNaN(qty) || qty < 1 || qty > 1000) {
+      return res.status(400).json({ message: 'Quantity must be between 1 and 1000' });
     }
 
     const product = await prisma.product.findUnique({
@@ -208,7 +210,7 @@ const updateCartQuantity = async (req, res) => {
     });
   } catch (error) {
     console.error('Update cart error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to update cart' });
   }
 };
 
@@ -240,7 +242,7 @@ const removeFromCart = async (req, res) => {
     res.json({ message: 'Item removed from cart' });
   } catch (error) {
     console.error('Remove from cart error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to remove from cart' });
   }
 };
 
@@ -261,7 +263,7 @@ const clearCart = async (req, res) => {
     res.json({ message: 'Cart cleared' });
   } catch (error) {
     console.error('Clear cart error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to clear cart' });
   }
 };
 
@@ -279,7 +281,7 @@ const getCartCount = async (req, res) => {
     res.json({ totalItems: result._sum.quantity || 0 });
   } catch (error) {
     console.error('Get cart count error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch cart count' });
   }
 };
 

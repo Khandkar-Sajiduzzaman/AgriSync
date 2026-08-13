@@ -80,7 +80,7 @@ const placeOrder = async (req, res) => {
     }
 
     const buyerId = req.user.id;
-    const {
+    let {
       deliveryAddress,
       deliveryNotes,
       paymentMethod = 'cash_on_delivery',
@@ -91,6 +91,19 @@ const placeOrder = async (req, res) => {
     if (!deliveryAddress || deliveryAddress.trim() === '') {
       return res.status(400).json({ message: 'Delivery address is required' });
     }
+
+    // SECURITY: Validate and sanitize fee/discount
+    deliveryFee = Math.max(0, parseFloat(deliveryFee) || 0);
+    discountAmount = Math.max(0, parseFloat(discountAmount) || 0);
+
+    // SECURITY: Cap unreasonable values
+    if (deliveryFee > 10000) {
+      return res.status(400).json({ message: 'Delivery fee exceeds maximum allowed' });
+    }
+    if (discountAmount > 100000) {
+      return res.status(400).json({ message: 'Discount amount exceeds maximum allowed' });
+    }
+
 
     // Step 1: Get all cart items with product details
     const cartItems = await prisma.cartItem.findMany({
@@ -274,6 +287,8 @@ const getMyOrders = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
 
     let where = {};
 
@@ -289,50 +304,58 @@ const getMyOrders = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // LIGHTWEIGHT list view: only fields the OrdersPage list actually renders
-    const orders = await prisma.order.findMany({
-      where,
-      select: {
-        id: true,
-        orderNumber: true,
-        status: true,
-        paymentMethod: true,
-        totalAmount: true,
-        createdAt: true,
-        buyer: { select: { id: true, name: true } },
-        farmer: { select: { id: true, name: true } },
-        items: {
-          select: {
-            id: true,
-            quantity: true,
-            productName: true,
-            product: { select: { id: true, images: true } },
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentMethod: true,
+          totalAmount: true,
+          createdAt: true,
+          buyer: { select: { id: true, name: true } },
+          farmer: { select: { id: true, name: true } },
+          items: {
+            select: {
+              id: true,
+              quantity: true,
+              productName: true,
+              product: { select: { id: true, images: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.order.count({ where })
+    ]);
 
-    // Fast manual transform — no recursive shapeOrder() overhead
-    res.json(orders.map((o) => ({
-      _id: o.id,
-      orderNumber: o.orderNumber,
-      status: o.status,
-      paymentMethod: o.paymentMethod,
-      totalAmount: o.totalAmount?.toNumber ? o.totalAmount.toNumber() : o.totalAmount,
-      createdAt: o.createdAt,
-      buyer: o.buyer ? { _id: o.buyer.id, name: o.buyer.name } : null,
-      farmer: o.farmer ? { _id: o.farmer.id, name: o.farmer.name } : null,
-      items: o.items.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-        productName: item.productName,
-        product: item.product ? { id: item.product.id, images: item.product.images } : null,
+    res.json({
+      data: orders.map((o) => ({
+        _id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        totalAmount: o.totalAmount?.toNumber ? o.totalAmount.toNumber() : o.totalAmount,
+        createdAt: o.createdAt,
+        buyer: o.buyer ? { _id: o.buyer.id, name: o.buyer.name } : null,
+        farmer: o.farmer ? { _id: o.farmer.id, name: o.farmer.name } : null,
+        items: o.items.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          productName: item.productName,
+          product: item.product ? { id: item.product.id, images: item.product.images } : null,
+        })),
       })),
-    })));
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
     console.error('Get orders error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch orders' });
   }
 };
 /**
@@ -341,52 +364,85 @@ const getMyOrders = async (req, res) => {
  */
 const getOrderById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    const userRole = req.user.role;
-
     const order = await prisma.order.findUnique({
-      where: { id },
+      where: { id: req.params.id },
       include: {
-        buyer: { select: { id: true, name: true, email: true, phone: true, address: true } },
-        farmer: { select: { id: true, name: true, email: true, phone: true, address: true } },
-        deliveryMan: { select: { id: true, name: true, phone: true } },
         items: {
           include: {
             product: {
-              include: {
-                farmer: { select: { id: true, name: true } },
-              },
+              select: { id: true, name: true, images: true, unit: true },
             },
           },
         },
-        statusHistory: { orderBy: { createdAt: 'asc' } },
-        trackingUpdates: { orderBy: { createdAt: 'asc' } },
-        reviews: {
-          include: {
-            author: { select: { id: true, name: true } },
-          },
-        },
+        buyer: { select: { id: true, name: true, phone: true, email: true } },
+        farmer: { select: { id: true, name: true, phone: true, email: true } },
+        deliveryMan: { select: { id: true, name: true, phone: true } },
+        statusHistory: true,
+        tracking: true,
       },
     });
 
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    if (req.user.role === 'buyer' && order.buyerId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    if (req.user.role === 'farmer' && order.farmerId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    if (req.user.role === 'delivery_man' && order.deliveryManId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    if (req.user.role !== 'admin' && req.user.role !== 'buyer' && req.user.role !== 'farmer' && req.user.role !== 'delivery_man') {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const isBuyer = order.buyerId === userId;
-    const isFarmer = order.farmerId === userId;
-    const isDeliveryMan = order.deliveryManId === userId;
-    const isAdmin = userRole === 'admin';
+    // SECURITY: Limit PII based on who is asking
+    const buyerInfo = { _id: order.buyer.id, name: order.buyer.name };
+    const farmerInfo = { _id: order.farmer.id, name: order.farmer.name };
 
-    if (!isBuyer && !isFarmer && !isDeliveryMan && !isAdmin) {
-      return res.status(403).json({ message: 'Not authorized to view this order' });
+    // Farmers and delivery men need buyer phone for delivery coordination
+    if (req.user.role === 'farmer' || req.user.role === 'delivery_man' || req.user.role === 'admin') {
+      buyerInfo.phone = order.buyer.phone;
     }
 
-    res.json(shapeOrder(order));
+    // Delivery men need farmer phone for pickup coordination
+    if (req.user.role === 'delivery_man' || req.user.role === 'admin') {
+      farmerInfo.phone = order.farmer.phone;
+    }
+
+    res.json({
+      _id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      totalAmount: order.totalAmount?.toNumber ? order.totalAmount.toNumber() : order.totalAmount,
+      deliveryFee: order.deliveryFee?.toNumber ? order.deliveryFee.toNumber() : order.deliveryFee,
+      discountAmount: order.discountAmount?.toNumber ? order.discountAmount.toNumber() : order.discountAmount,
+      deliveryAddress: order.deliveryAddress,
+      deliveryNotes: order.deliveryNotes,
+      estimatedDelivery: order.estimatedDelivery,
+      createdAt: order.createdAt,
+      cancelledAt: order.cancelledAt,
+      buyer: buyerInfo,
+      farmer: farmerInfo,
+      deliveryMan: order.deliveryMan ? { _id: order.deliveryMan.id, name: order.deliveryMan.name } : null,
+      items: order.items.map((item) => ({
+        id: item.id,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice?.toNumber ? item.unitPrice.toNumber() : item.unitPrice,
+        total: item.total?.toNumber ? item.total.toNumber() : item.total,
+        unit: item.unit,
+        product: item.product,
+      })),
+      statusHistory: order.statusHistory,
+      tracking: order.tracking,
+    });
   } catch (error) {
-    console.error('Get order by id error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Get order error:', error);
+    res.status(500).json({ message: 'Failed to fetch order' });
   }
 };
 
@@ -409,7 +465,34 @@ const updateOrderStatus = async (req, res) => {
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status value' });
     }
+    // SECURITY: Validate status transitions
+    const allowedTransitions = {
+      buyer: {
+        pending: ['cancelled'],
+      },
+      farmer: {
+        pending: ['confirmed'],
+        confirmed: ['processing'],
+        processing: ['shipped'],
+      },
+      delivery_man: {
+        shipped: ['out_for_delivery'],
+        out_for_delivery: ['delivered'],
+      },
+      admin: ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'],
+    };
 
+    const currentStatus = order.status;
+
+    if (userRole !== 'admin') {
+      const roleTransitions = allowedTransitions[userRole] || {};
+      const allowed = roleTransitions[currentStatus] || [];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({ 
+          message: `Cannot change status from ${currentStatus} to ${status}` 
+        });
+      }
+    }
     const order = await prisma.order.findUnique({
       where: { id },
       include: { items: { include: { product: true } } },
@@ -662,22 +745,19 @@ const getAvailableDeliveryMen = async (req, res) => {
     }
 
     const deliveryMen = await prisma.user.findMany({
-      where: {
-        role: 'delivery_man',
-        accountStatus: 'active',
-        deliveryManProfile: { isAvailable: true },
-      },
+      where: { role: 'delivery_man', accountStatus: 'active' },
       select: {
         id: true,
         name: true,
         phone: true,
+        profileImage: true,
         deliveryManProfile: {
           select: {
             vehicleType: true,
-            licenseNumber: true,
-            currentLatitude: true,
-            currentLongitude: true,
+            currentLocation: true,
             isAvailable: true,
+            averageRating: true,
+            // SECURITY: Removed licenseNumber and address
           },
         },
       },
@@ -776,7 +856,6 @@ const updateDeliveryLocation = async (req, res) => {
     }
 
     const { latitude, longitude } = req.body;
-    const userId = req.user.id;
 
     if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
@@ -785,40 +864,30 @@ const updateDeliveryLocation = async (req, res) => {
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
 
-    // Update the delivery man's profile with current location
-    await prisma.deliveryManProfile.update({
-      where: { userId },
-      data: {
-        currentLatitude: lat,
-        currentLongitude: lng,
-      },
-    });
-
-    // Find any order this delivery man is currently assigned to
-    // that is in "out_for_delivery" status
-    const activeOrder = await prisma.order.findFirst({
-      where: {
-        deliveryManId: userId,
-        status: 'out_for_delivery',
-      },
-    });
-
-    // If they have an active delivery, log a tracking point
-    if (activeOrder) {
-      await prisma.deliveryTracking.create({
-        data: {
-          orderId: activeOrder.id,
-          latitude: lat,
-          longitude: lng,
-          status: 'moving',
-        },
-      });
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ message: 'Invalid coordinates' });
     }
 
-    res.json({ message: 'Location updated', orderId: activeOrder?.id || null });
+    // SECURITY: Validate coordinate bounds (Bangladesh roughly)
+    if (lat < 20 || lat > 27 || lng < 88 || lng > 93) {
+      return res.status(400).json({ message: 'Coordinates out of valid range' });
+    }
+
+    const updated = await prisma.deliveryManProfile.update({
+      where: { userId: req.user.id },
+      data: {
+        currentLocation: { latitude: lat, longitude: lng },
+        lastLocationUpdate: new Date(),
+      },
+    });
+
+    res.json({
+      message: 'Location updated',
+      currentLocation: updated.currentLocation,
+    });
   } catch (error) {
-    console.error('Update delivery location error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Update location error:', error);
+    res.status(500).json({ message: 'Failed to update location' });
   }
 };
 
@@ -881,6 +950,62 @@ const getLatestTracking = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+/**
+ * GET /api/orders/delivery/location/:userId
+ * Get a delivery man's current live GPS location.
+ * SECURITY: Only the delivery man themselves, an admin, or a buyer/farmer
+ * who has an active order with this delivery man can view the location.
+ */
+const getDeliveryLocation = async (req, res) => {
+  try {
+    const targetId = req.params.userId;
+
+    // SECURITY: Only allow if user is requesting their own location,
+    // or if they are an admin, or if the delivery man is assigned to their order
+    const isSelf = req.user.id === targetId;
+    const isAdmin = req.user.role === 'admin';
+
+    let isAuthorized = isSelf || isAdmin;
+
+    if (!isAuthorized && (req.user.role === 'buyer' || req.user.role === 'farmer')) {
+      // Check if this delivery man is assigned to any active order belonging to this user
+      const order = await prisma.order.findFirst({
+        where: {
+          deliveryManId: targetId,
+          OR: [
+            { buyerId: req.user.id },
+            { farmerId: req.user.id },
+          ],
+          status: { notIn: ['cancelled', 'refunded', 'delivered'] },
+        },
+      });
+      isAuthorized = !!order;
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ message: 'Not authorized to view this location' });
+    }
+
+    const profile = await prisma.deliveryManProfile.findUnique({
+      where: { userId: targetId },
+      select: { currentLatitude: true, currentLongitude: true, isAvailable: true },
+    });
+
+    if (!profile) {
+      return res.status(404).json({ message: 'Delivery man not found' });
+    }
+
+    res.json({
+      userId: targetId,
+      currentLatitude: profile.currentLatitude,
+      currentLongitude: profile.currentLongitude,
+      isAvailable: profile.isAvailable,
+    });
+  } catch (error) {
+    console.error('Get delivery location error:', error);
+    res.status(500).json({ message: 'Failed to fetch location' });
+  }
+};
 
 module.exports = {
   placeOrder,
@@ -893,4 +1018,5 @@ module.exports = {
   assignDeliveryMan,
   updateDeliveryLocation,
   getLatestTracking,
+  getDeliveryLocation, 
 };

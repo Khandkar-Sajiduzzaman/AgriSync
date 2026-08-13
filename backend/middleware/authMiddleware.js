@@ -1,16 +1,10 @@
-// This middleware checks that a valid login token (JWT) was sent with
-// the request, before letting it reach the controller. Same idea as
-// checking $_SESSION['user_id'] at the top of a PHP page, except MERN
-// APIs are stateless, so instead of a session, the browser sends a
-// token in the request header on every request.
-
 const jwt = require("jsonwebtoken");
 const prisma = require('../config/db');
 
-// In-memory cache: userId -> { user, expiresAt }
-// Prevents hitting Supabase on every single authenticated API call.
+// In-memory cache with MAX size to prevent memory leak
 const userCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 500;
 
 const protect = async (req, res, next) => {
   let token;
@@ -19,18 +13,28 @@ const protect = async (req, res, next) => {
 
   if (authHeader && authHeader.startsWith("Bearer")) {
     try {
-      token = authHeader.split(" ")[1]; // "Bearer <token>" -> take the token part
+      token = authHeader.split(" ")[1];
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // SECURITY: Check if token is expired (jwt.verify throws if expired, but double-check)
+      if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+        return res.status(401).json({ message: "Not authorized, token expired" });
+      }
 
       // Check cache first
       const cached = userCache.get(decoded.id);
       if (cached && cached.expiresAt > Date.now()) {
+        // SECURITY: Verify user is still active
+        if (cached.user.accountStatus === 'suspended') {
+          userCache.delete(decoded.id);
+          return res.status(403).json({ message: 'Account suspended' });
+        }
         req.user = cached.user;
         return next();
       }
 
-      // Cache miss: hit the database once
+      // Cache miss: hit the database
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
         select: {
@@ -42,6 +46,7 @@ const protect = async (req, res, next) => {
           address: true,
           bio: true,
           profileImage: true,
+          accountStatus: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -51,10 +56,20 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ message: 'User no longer exists' });
       }
 
-      // Store in cache so the next API call skips the DB round-trip
+      // SECURITY: Block suspended accounts
+      if (user.accountStatus === 'suspended') {
+        return res.status(403).json({ message: 'Account suspended' });
+      }
+
+      // SECURITY: Prevent cache from growing forever
+      if (userCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = userCache.keys().next().value;
+        userCache.delete(firstKey);
+      }
+
       userCache.set(decoded.id, { user, expiresAt: Date.now() + CACHE_TTL_MS });
       req.user = user;
-      next(); // token is valid, continue to the actual route handler // token is valid, continue to the actual route handler
+      next();
     } catch (error) {
       return res.status(401).json({ message: "Not authorized, invalid token" });
     }
@@ -63,4 +78,4 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+module.exports = { protect, userCache };

@@ -13,7 +13,7 @@ const {
 } = require("../controllers/productController");
 
 const { protect } = require("../middleware/authMiddleware");
-const upload = require("../middleware/uploadMiddleware");
+const { upload, processImage } = require("../middleware/uploadMiddleware");
 
 // Create a product (Farmer only)
 router.post("/", protect, createProduct);
@@ -40,11 +40,5 @@ router.put("/:id", protect, updateProduct);
 router.delete("/:id", protect, deleteProduct);
 
 // Upload product image
-router.put(
-  "/:id/image",
-  protect,
-  upload.single("productImage"),
-  uploadProductImage
-);
-
+router.put("/:id/image", protect, upload.single("productImage"), processImage, uploadProductImage);
 module.exports = router;

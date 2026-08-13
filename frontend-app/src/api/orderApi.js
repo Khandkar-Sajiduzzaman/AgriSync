@@ -20,8 +20,8 @@ export const placeOrder = async (orderData) => {
 };
 
 // Get my orders
-export const getMyOrders = async () => {
-  const res = await fetch(`${BASE_URL}`, {
+export const getMyOrders = async (page = 1, limit = 20) => {
+  const res = await fetch(`${BASE_URL}?page=${page}&limit=${limit}`, {
     headers: { ...authHeader() },
   });
   const data = await res.json();
@@ -60,6 +60,7 @@ export const getOrderTracking = async (orderId) => {
   if (!res.ok) throw new Error(data.message || "Failed to load tracking");
   return data;
 };
+
 // Get available delivery men (for farmer to assign)
 export const getAvailableDeliveryMen = async () => {
   const res = await fetch(`${BASE_URL}/available-delivery-men`, {
@@ -101,5 +102,15 @@ export const updateDeliveryLocation = async (lat, lng) => {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to update location");
+  return data;
+};
+
+// Get live delivery location (authorized users only)
+export const getDeliveryLocation = async (userId) => {
+  const res = await fetch(`${BASE_URL}/delivery/location/${userId}`, {
+    headers: { ...authHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to load location");
   return data;
 };

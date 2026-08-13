@@ -18,8 +18,8 @@ function OrdersPage() {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const data = await getMyOrders();
-      setOrders(data);
+      const result = await getMyOrders();
+      setOrders(result.data || []);
     } catch (err) {
       setError(err.message);
     } finally {

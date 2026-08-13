@@ -20,6 +20,10 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    if (image && image.size > 2 * 1024 * 1024) {
+      alert("Image must be smaller than 2MB")
+      return
+    }
     onSubmit(form, image)
   }
 

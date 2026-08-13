@@ -14,7 +14,9 @@ function CheckoutPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
-  const { refreshCart } = useCart();
+  
+  // BUG FIX: Destructure BOTH clearCart and refreshCart from context
+  const { clearCart, refreshCart } = useCart();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
@@ -38,6 +40,7 @@ function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
+    // BUG FIX: Use deliveryAddress, not address
     if (!deliveryAddress.trim()) {
       setError("Please enter a delivery address");
       return;
@@ -45,15 +48,18 @@ function CheckoutPage() {
     setPlacing(true);
     setError("");
     try {
-      const data = await placeOrder({
-        deliveryAddress,
-        deliveryNotes,
+      // BUG FIX: Use deliveryAddress and deliveryNotes
+      const result = await placeOrder({
+        deliveryAddress: deliveryAddress,
+        deliveryNotes: deliveryNotes,
         paymentMethod,
       });
-      setSuccess(data);
-      refreshCart();
+      clearCart();           // BUG FIX: clearCart is now imported
+      refreshCart();         // Refresh cart badge in navbar
+      setSuccess(result);    // Show success receipt
     } catch (err) {
-      setError(err.message);
+      console.error("Place order failed:", err);
+      setError(err.message || "Failed to place order. Please try again.");
     } finally {
       setPlacing(false);
     }
@@ -74,7 +80,7 @@ function CheckoutPage() {
         <h1 style={{ color: "#27ae60", margin: "0 0 10px 0" }}>Order Placed!</h1>
         <p style={{ color: "#666", marginBottom: "25px" }}>Thank you for shopping with AgriSync.</p>
 
-        {success.orders.map((order) => (
+        {success.orders?.map((order) => (
           <div
             key={order._id}
             style={{
