@@ -74,13 +74,18 @@ const generateOrderNumber = () => {
  * 4. Clear cart
  */
 const placeOrder = async (req, res) => {
+  console.log('=== PLACE ORDER STARTED ===');
+  console.log('User:', req.user);
+  console.log('Body:', req.body);
+  
   try {
     if (req.user.role !== 'buyer') {
+      console.log('REJECTED: Not a buyer');
       return res.status(403).json({ message: 'Only buyers can place orders' });
     }
 
     const buyerId = req.user.id;
-    let {
+    const {
       deliveryAddress,
       deliveryNotes,
       paymentMethod = 'cash_on_delivery',
@@ -88,34 +93,25 @@ const placeOrder = async (req, res) => {
       discountAmount = 0,
     } = req.body;
 
+    console.log('Step 1: Validating address...');
     if (!deliveryAddress || deliveryAddress.trim() === '') {
+      console.log('REJECTED: Missing address');
       return res.status(400).json({ message: 'Delivery address is required' });
     }
 
-    // SECURITY: Validate and sanitize fee/discount
-    deliveryFee = Math.max(0, parseFloat(deliveryFee) || 0);
-    discountAmount = Math.max(0, parseFloat(discountAmount) || 0);
-
-    // SECURITY: Cap unreasonable values
-    if (deliveryFee > 10000) {
-      return res.status(400).json({ message: 'Delivery fee exceeds maximum allowed' });
-    }
-    if (discountAmount > 100000) {
-      return res.status(400).json({ message: 'Discount amount exceeds maximum allowed' });
-    }
-
-
-    // Step 1: Get all cart items with product details
+    console.log('Step 2: Fetching cart items...');
     const cartItems = await prisma.cartItem.findMany({
       where: { userId: buyerId },
       include: { product: true },
     });
+    console.log('Cart items found:', cartItems.length);
 
     if (cartItems.length === 0) {
+      console.log('REJECTED: Empty cart');
       return res.status(400).json({ message: 'Your cart is empty' });
     }
 
-    // Step 2: Group items by farmerId
+    console.log('Step 3: Grouping by farmer...');
     const itemsByFarmer = {};
     for (const item of cartItems) {
       const farmerId = item.product.farmerId;
@@ -124,28 +120,31 @@ const placeOrder = async (req, res) => {
       }
       itemsByFarmer[farmerId].push(item);
     }
+    console.log('Farmers:', Object.keys(itemsByFarmer));
 
     const createdOrders = [];
 
-    // Step 3: Process each farmer's group inside a database transaction
-    for (const farmerId of Object.keys(itemsByFarmer)) {
+     for (const farmerId of Object.keys(itemsByFarmer)) {
+      console.log('Step 4: Processing farmer:', farmerId);
       const items = itemsByFarmer[farmerId];
 
-      // 3a. Verify stock is still available
+      console.log('Step 4a: Checking stock and availability...');
       for (const item of items) {
         if (item.quantity > item.product.stock) {
+          console.log('REJECTED: Insufficient stock for', item.product.name);
           return res.status(400).json({
-            message: `Not enough stock for "${item.product.name}". Available: ${item.product.stock}, Requested: ${item.quantity}`,
+            message: `Insufficient stock for ${item.product.name}. Available: ${item.product.stock}, Requested: ${item.quantity}`,
           });
         }
         if (!item.product.isAvailable || item.product.isRemoved || !item.product.isApproved) {
+          console.log('REJECTED: Product not available', item.product.name);
           return res.status(400).json({
-            message: `"${item.product.name}" is no longer available for purchase`,
+            message: `${item.product.name} is no longer available`,
           });
         }
       }
 
-      // 3b. Calculate subtotal (sum of all item totals)
+      console.log('Step 4b: Calculating totals...');
       let subtotal = 0;
       for (const item of items) {
         const unitPrice = item.product.price.toNumber
@@ -157,10 +156,12 @@ const placeOrder = async (req, res) => {
       const dFee = parseFloat(deliveryFee) || 0;
       const disc = parseFloat(discountAmount) || 0;
       const totalAmount = subtotal + dFee - disc;
+      console.log('Subtotal:', subtotal, 'DeliveryFee:', dFee, 'Discount:', disc, 'Total:', totalAmount);
 
-      // 3c-g. Transaction: create order, items, deduct stock, log inventory, record history
-      const order = await prisma.$transaction(async (tx) => {
-        const newOrder = await tx.order.create({
+      console.log('Step 4c: Starting database transaction...');
+      const newOrder = await prisma.$transaction(async (tx) => {
+        console.log('  TX: Creating order...');
+        const order = await tx.order.create({
           data: {
             orderNumber: generateOrderNumber(),
             buyerId,
@@ -170,33 +171,33 @@ const placeOrder = async (req, res) => {
             paymentMethod,
             subtotal,
             totalAmount,
-            deliveryFee: dFee || null,
-            discountAmount: disc || null,
+            deliveryFee: dFee === 0 ? 0 : dFee || null,
+            discountAmount: disc === 0 ? 0 : disc || null,
             deliveryAddress,
             deliveryNotes: deliveryNotes || null,
           },
         });
+        console.log('  TX: Order created:', order.id);
 
+        console.log('  TX: Creating order items...');
         for (const item of items) {
           const unitPrice = item.product.price.toNumber
             ? item.product.price.toNumber()
             : parseFloat(item.product.price);
           const itemTotal = unitPrice * item.quantity;
 
-          // Create order item with snapshot data
           await tx.orderItem.create({
             data: {
-              orderId: newOrder.id,
+              orderId: order.id,
               productId: item.productId,
               quantity: item.quantity,
               unitPrice: item.product.price,
               total: itemTotal,
-              unit: item.product.unit,           // NEW: snapshot unit
-              productName: item.product.name,  // NEW: snapshot name
+              unit: item.product.unit,
+              productName: item.product.name,
             },
           });
 
-          // Deduct stock
           const oldStock = item.product.stock;
           const newStock = oldStock - item.quantity;
 
@@ -205,7 +206,6 @@ const placeOrder = async (req, res) => {
             data: { stock: newStock },
           });
 
-          // Log inventory change
           await tx.inventoryLog.create({
             data: {
               productId: item.productId,
@@ -217,68 +217,93 @@ const placeOrder = async (req, res) => {
           });
         }
 
-        // Initial status history
         await tx.orderStatusHistory.create({
           data: {
-            orderId: newOrder.id,
+            orderId: order.id,
             status: 'pending',
             notes: 'Order placed by buyer',
             changedBy: buyerId,
           },
         });
 
-        return newOrder;
+        return order;
       });
+      console.log('Step 4d: Transaction complete. Order ID:', newOrder.id);
 
-      // Fetch complete order with relations
-      const fullOrder = await prisma.order.findUnique({
-        where: { id: order.id },
-        include: {
-          buyer: { select: { id: true, name: true, email: true, phone: true, address: true } },
-          farmer: { select: { id: true, name: true, email: true, phone: true, address: true } },
-          items: {
-            include: {
-              product: {
-                include: {
-                  farmer: { select: { id: true, name: true } },
-                },
-              },
-            },
-          },
-          statusHistory: { orderBy: { createdAt: 'asc' } },
-        },
-      });
-
-      // AUTO-START CHAT ON ORDER
+      // OPTIMIZED: Don't re-fetch the full order with heavy includes
+      // Just send the notification and build a lightweight response object
+      console.log('Step 4e: Sending notification...');
       if (buyerId !== farmerId) {
         await prisma.message.create({
           data: {
             senderId: buyerId,
             receiverId: farmerId,
-            content: `Hello! I have placed a new order (${fullOrder.orderNumber}) for your products.`,
-            orderId: fullOrder.id,
+            content: `Hello! I have placed a new order (${newOrder.orderNumber}) for your products.`,
+            orderId: newOrder.id,
           }
         });
       }
 
-      createdOrders.push(shapeOrder(fullOrder));
+      console.log('Step 4f: Building response...');
+      // Build a lightweight shaped order without re-fetching from DB
+      createdOrders.push({
+        id: newOrder.id,
+        _id: newOrder.id,
+        orderNumber: newOrder.orderNumber,
+        status: newOrder.status,
+        paymentStatus: newOrder.paymentStatus,
+        paymentMethod: newOrder.paymentMethod,
+        subtotal: newOrder.subtotal,
+        totalAmount: newOrder.totalAmount,
+        deliveryFee: newOrder.deliveryFee,
+        discountAmount: newOrder.discountAmount,
+        deliveryAddress: newOrder.deliveryAddress,
+        deliveryNotes: newOrder.deliveryNotes,
+        createdAt: newOrder.createdAt,
+        updatedAt: newOrder.updatedAt,
+        items: items.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          productName: item.product.name,
+          quantity: item.quantity,
+          unitPrice: item.product.price,
+          total: (item.product.price.toNumber ? item.product.price.toNumber() : parseFloat(item.product.price)) * item.quantity,
+          unit: item.product.unit,
+          product: {
+            id: item.product.id,
+            name: item.product.name,
+            images: item.product.images,
+            unit: item.product.unit,
+            farmer: { id: farmerId, name: itemsByFarmer[farmerId][0]?.product?.farmer?.name || 'Unknown' }
+          }
+        })),
+        buyer: { id: req.user.id, name: req.user.name, email: req.user.email, phone: req.user.phone, address: req.user.address },
+        farmer: { id: farmerId, name: itemsByFarmer[farmerId][0]?.product?.farmer?.name || 'Unknown Farmer' },
+        deliveryMan: null,
+        statusHistory: [{ status: 'pending', notes: 'Order placed by buyer', createdAt: newOrder.createdAt }],
+        trackingUpdates: [],
+        reviews: [],
+      });
     }
 
-    // Step 4: Clear cart
+    console.log('Step 5: Clearing cart...');
     await prisma.cartItem.deleteMany({
       where: { userId: buyerId },
     });
 
+    console.log('=== PLACE ORDER SUCCESS ===');
     res.status(201).json({
       message: `Order${createdOrders.length > 1 ? 's' : ''} placed successfully`,
       orders: createdOrders,
     });
   } catch (error) {
-    console.error('Place order error:', error);
+    console.error('=== PLACE ORDER CRASH ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ message: error.message });
   }
 };
-
 /**
  * GET /api/orders
  * Get all orders for the logged-in user.
@@ -364,85 +389,52 @@ const getMyOrders = async (req, res) => {
  */
 const getOrderById = async (req, res) => {
   try {
-    const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const existingOrder = await prisma.order.findUnique({
+      where: { id },
       include: {
+        buyer: { select: { id: true, name: true, email: true, phone: true, address: true } },
+        farmer: { select: { id: true, name: true, email: true, phone: true, address: true } },
+        deliveryMan: { select: { id: true, name: true, phone: true } },
         items: {
           include: {
             product: {
-              select: { id: true, name: true, images: true, unit: true },
+              include: {
+                farmer: { select: { id: true, name: true } },
+              },
             },
           },
         },
-        buyer: { select: { id: true, name: true, phone: true, email: true } },
-        farmer: { select: { id: true, name: true, phone: true, email: true } },
-        deliveryMan: { select: { id: true, name: true, phone: true } },
-        statusHistory: true,
-        tracking: true,
+        statusHistory: { orderBy: { createdAt: 'asc' } },
+        trackingUpdates: { orderBy: { createdAt: 'asc' } },
+        reviews: {
+          include: {
+            author: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-
-    if (req.user.role === 'buyer' && order.buyerId !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    if (req.user.role === 'farmer' && order.farmerId !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    if (req.user.role === 'delivery_man' && order.deliveryManId !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    if (req.user.role !== 'admin' && req.user.role !== 'buyer' && req.user.role !== 'farmer' && req.user.role !== 'delivery_man') {
-      return res.status(403).json({ message: 'Not authorized' });
+    if (!existingOrder) {
+      return res.status(404).json({ message: 'Order not found' });
     }
 
-    // SECURITY: Limit PII based on who is asking
-    const buyerInfo = { _id: order.buyer.id, name: order.buyer.name };
-    const farmerInfo = { _id: order.farmer.id, name: order.farmer.name };
+    const isBuyer = existingOrder.buyerId === userId;
+    const isFarmer = existingOrder.farmerId === userId;
+    const isDeliveryMan = existingOrder.deliveryManId === userId;
+    const isAdmin = userRole === 'admin';
 
-    // Farmers and delivery men need buyer phone for delivery coordination
-    if (req.user.role === 'farmer' || req.user.role === 'delivery_man' || req.user.role === 'admin') {
-      buyerInfo.phone = order.buyer.phone;
+    if (!isBuyer && !isFarmer && !isDeliveryMan && !isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to view this order' });
     }
 
-    // Delivery men need farmer phone for pickup coordination
-    if (req.user.role === 'delivery_man' || req.user.role === 'admin') {
-      farmerInfo.phone = order.farmer.phone;
-    }
-
-    res.json({
-      _id: order.id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      paymentMethod: order.paymentMethod,
-      paymentStatus: order.paymentStatus,
-      totalAmount: order.totalAmount?.toNumber ? order.totalAmount.toNumber() : order.totalAmount,
-      deliveryFee: order.deliveryFee?.toNumber ? order.deliveryFee.toNumber() : order.deliveryFee,
-      discountAmount: order.discountAmount?.toNumber ? order.discountAmount.toNumber() : order.discountAmount,
-      deliveryAddress: order.deliveryAddress,
-      deliveryNotes: order.deliveryNotes,
-      estimatedDelivery: order.estimatedDelivery,
-      createdAt: order.createdAt,
-      cancelledAt: order.cancelledAt,
-      buyer: buyerInfo,
-      farmer: farmerInfo,
-      deliveryMan: order.deliveryMan ? { _id: order.deliveryMan.id, name: order.deliveryMan.name } : null,
-      items: order.items.map((item) => ({
-        id: item.id,
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice?.toNumber ? item.unitPrice.toNumber() : item.unitPrice,
-        total: item.total?.toNumber ? item.total.toNumber() : item.total,
-        unit: item.unit,
-        product: item.product,
-      })),
-      statusHistory: order.statusHistory,
-      tracking: order.tracking,
-    });
+    res.json(shapeOrder(existingOrder));
   } catch (error) {
-    console.error('Get order error:', error);
-    res.status(500).json({ message: 'Failed to fetch order' });
+    console.error('Get order by id error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -452,6 +444,11 @@ const getOrderById = async (req, res) => {
  */
 const updateOrderStatus = async (req, res) => {
   try {
+    console.log('UPDATE ORDER STATUS CALLED');
+    console.log('Params:', req.params);
+    console.log('Body:', req.body);
+    console.log('User:', req.user);
+    // ... rest of function
     const { id } = req.params;
     const { status, notes } = req.body;
     const userId = req.user.id;
@@ -465,46 +462,20 @@ const updateOrderStatus = async (req, res) => {
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status value' });
     }
-    // SECURITY: Validate status transitions
-    const allowedTransitions = {
-      buyer: {
-        pending: ['cancelled'],
-      },
-      farmer: {
-        pending: ['confirmed'],
-        confirmed: ['processing'],
-        processing: ['shipped'],
-      },
-      delivery_man: {
-        shipped: ['out_for_delivery'],
-        out_for_delivery: ['delivered'],
-      },
-      admin: ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'],
-    };
 
-    const currentStatus = order.status;
-
-    if (userRole !== 'admin') {
-      const roleTransitions = allowedTransitions[userRole] || {};
-      const allowed = roleTransitions[currentStatus] || [];
-      if (!allowed.includes(status)) {
-        return res.status(400).json({ 
-          message: `Cannot change status from ${currentStatus} to ${status}` 
-        });
-      }
-    }
-    const order = await prisma.order.findUnique({
+    // Fetch the order from database
+    const existingOrder = await prisma.order.findUnique({
       where: { id },
       include: { items: { include: { product: true } } },
     });
 
-    if (!order) {
+    if (!existingOrder) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const isBuyer = order.buyerId === userId;
-    const isFarmer = order.farmerId === userId;
-    const isDeliveryMan = order.deliveryManId === userId;
+    const isBuyer = existingOrder.buyerId === userId;
+    const isFarmer = existingOrder.farmerId === userId;
+    const isDeliveryMan = existingOrder.deliveryManId === userId;
     const isAdmin = userRole === 'admin';
 
     let canUpdate = false;
@@ -515,28 +486,26 @@ const updateOrderStatus = async (req, res) => {
       if (status === 'cancelled' && order.status === 'pending') {
         canUpdate = true;
       }
-        } else if (isFarmer) {
+    } else if (isFarmer) {
       const farmerAllowed = ['confirmed', 'processing', 'shipped', 'cancelled'];
       if (farmerAllowed.includes(status)) {
-        // Prevent shipping if no delivery man is assigned
-        if (status === 'shipped' && !order.deliveryManId) {
+        if (status === 'shipped' && !existingOrder.deliveryManId) {
           return res.status(400).json({
             message: 'Please assign a delivery man before marking as shipped',
           });
         }
         const flow = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
-        const currentIndex = flow.indexOf(order.status);
+        const currentIndex = flow.indexOf(existingOrder.status);
         const newIndex = flow.indexOf(status);
         if (newIndex > currentIndex || status === 'cancelled') {
           canUpdate = true;
         }
       }
-     
     } else if (isDeliveryMan) {
       const deliveryAllowed = ['out_for_delivery', 'delivered'];
       if (deliveryAllowed.includes(status)) {
         const flow = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
-        const currentIndex = flow.indexOf(order.status);
+        const currentIndex = flow.indexOf(existingOrder.status);
         const newIndex = flow.indexOf(status);
         if (newIndex > currentIndex) {
           canUpdate = true;
@@ -546,14 +515,14 @@ const updateOrderStatus = async (req, res) => {
 
     if (!canUpdate) {
       return res.status(403).json({
-        message: `You are not authorized to change status from "${order.status}" to "${status}"`,
+        message: `You are not authorized to change status from "${existingOrder.status}" to "${status}"`,
       });
     }
 
-    // If cancelling, restore stock and record cancellation
-    if (status === 'cancelled' && order.status !== 'cancelled') {
+    // Handle cancellation (restore stock)
+    if (status === 'cancelled' && existingOrder.status !== 'cancelled') {
       await prisma.$transaction(async (tx) => {
-        for (const item of order.items) {
+        for (const item of existingOrder.items) {
           const product = await tx.product.findUnique({
             where: { id: item.productId },
           });

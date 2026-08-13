@@ -9,14 +9,38 @@ const authHeader = () => {
 
 // Place order from cart
 export const placeOrder = async (orderData) => {
-  const res = await fetch(`${BASE_URL}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeader() },
-    body: JSON.stringify(orderData),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to place order");
-  return data;
+  console.log('Frontend: Starting placeOrder...');
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.log('Frontend: Request timed out after 30 seconds');
+    controller.abort();
+  }, 30000); // 30 second timeout
+
+  try {
+    const res = await fetch(`${BASE_URL}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeader() },
+      body: JSON.stringify(orderData),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    
+    console.log('Frontend: Response received, status:', res.status);
+    
+    const data = await res.json();
+    console.log('Frontend: Response data:', data);
+    
+    if (!res.ok) throw new Error(data.message || "Failed to place order");
+    return data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error("Request timed out. The server is taking too long. Please check My Orders — your order may have already been placed.");
+    }
+    console.error('Frontend: placeOrder error:', err.message);
+    throw err;
+  }
 };
 
 // Get my orders

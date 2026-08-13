@@ -40,27 +40,30 @@ function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    // BUG FIX: Use deliveryAddress, not address
     if (!deliveryAddress.trim()) {
       setError("Please enter a delivery address");
       return;
     }
     setPlacing(true);
     setError("");
+    console.log('Checkout: Placing order...');
+    
     try {
-      // BUG FIX: Use deliveryAddress and deliveryNotes
-      const result = await placeOrder({
-        deliveryAddress: deliveryAddress,
-        deliveryNotes: deliveryNotes,
+      const data = await placeOrder({
+        deliveryAddress,
+        deliveryNotes,
         paymentMethod,
+        deliveryFee,        // Send delivery fee to backend
+        discountAmount: 0,
       });
-      clearCart();           // BUG FIX: clearCart is now imported
-      refreshCart();         // Refresh cart badge in navbar
-      setSuccess(result);    // Show success receipt
+      console.log('Checkout: Order placed successfully!', data);
+      setSuccess(data);
+      refreshCart();
     } catch (err) {
-      console.error("Place order failed:", err);
-      setError(err.message || "Failed to place order. Please try again.");
+      console.error('Checkout: Error placing order:', err.message);
+      setError(err.message);
     } finally {
+      console.log('Checkout: Setting placing to false');
       setPlacing(false);
     }
   };
