@@ -10,6 +10,7 @@ function BrowseProducts() {
   const [category, setCategory] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [farmer, setFarmer] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [wishlistIds, setWishlistIds] = useState([]);
@@ -36,11 +37,8 @@ function BrowseProducts() {
   };
 
   useEffect(() => {
-    // Load page 1 of products immediately
     fetchProducts({ page: 1 });
 
-    // Load categories from lightweight endpoint (NOT every product in the database)
-    // Load categories from lightweight endpoint (NOT every product in the database)
     getCategories()
       .then((cats) => setCategories(cats))
       .catch((err) => {
@@ -57,7 +55,7 @@ function BrowseProducts() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    fetchProducts({ search, category, minPrice, maxPrice, page: 1 });
+    fetchProducts({ search, category, minPrice, maxPrice, farmer, page: 1 });
   };
 
   const handleReset = () => {
@@ -65,21 +63,19 @@ function BrowseProducts() {
     setCategory("");
     setMinPrice("");
     setMaxPrice("");
+    setFarmer("");
     fetchProducts({ page: 1 });
   };
 
   const handleToggleWishlist = async (productId) => {
-    // Optimistic: flip the heart immediately, don't wait for server
     const wasSaved = wishlistIds.includes(productId);
     setWishlistIds((prev) =>
       wasSaved ? prev.filter((id) => id !== productId) : [...prev, productId]
     );
 
-    // Fire API in background without blocking the UI
     try {
       await toggleWishlist(productId);
     } catch (err) {
-      // Revert on error silently — don't spam the page with red text
       setWishlistIds((prev) =>
         wasSaved ? [...prev, productId] : prev.filter((id) => id !== productId)
       );
@@ -87,7 +83,6 @@ function BrowseProducts() {
     }
   };
 
-  // Shared input style — visible gray border on white background
   const inputStyle = {
     width: "100%",
     padding: "12px 14px",
@@ -106,7 +101,6 @@ function BrowseProducts() {
         Browse Products
       </h2>
 
-      {/* White card container */}
       <div
         style={{
           backgroundColor: "#ffffff",
@@ -118,7 +112,6 @@ function BrowseProducts() {
         }}
       >
         <form onSubmit={handleSubmit}>
-          {/* Search */}
           <div style={{ marginBottom: "16px" }}>
             <label
               style={{
@@ -140,7 +133,6 @@ function BrowseProducts() {
             />
           </div>
 
-          {/* Filters row */}
           <div
             style={{
               display: "grid",
@@ -218,9 +210,29 @@ function BrowseProducts() {
                 style={inputStyle}
               />
             </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#333333",
+                  marginBottom: "6px",
+                }}
+              >
+                Farmer (optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Rahim, Karim..."
+                value={farmer}
+                onChange={(e) => setFarmer(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
           </div>
 
-          {/* Buttons */}
           <div style={{ display: "flex", gap: "12px" }}>
             <button
               type="submit"
@@ -257,7 +269,6 @@ function BrowseProducts() {
         </form>
       </div>
 
-      {/* Results */}
       {loading && (
         <p style={{ textAlign: "center", padding: "40px", color: "#666" }}>
           Loading products...

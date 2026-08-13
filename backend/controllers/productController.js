@@ -1,12 +1,11 @@
 const prisma = require('../config/db');
 
-// Helper: convert Prisma Decimal to plain number + add _id alias for frontend compatibility
 const shapeProduct = (product) => {
   if (!product) return product;
   return {
     ...product,
     _id: product.id,
-    category: product.legacyCategory, // expose legacyCategory as category for frontend
+    category: product.legacyCategory,
     price: product.price?.toNumber ? product.price.toNumber() : product.price,
     farmer: product.farmer
       ? { ...product.farmer, _id: product.farmer.id }
@@ -48,7 +47,7 @@ const createProduct = async (req, res) => {
 
 const getProducts = async (req, res) => {
   try {
-    const { search, category, minPrice, maxPrice, page, limit } = req.query;
+    const { search, category, minPrice, maxPrice, page, limit, farmer } = req.query;
     const where = {};
 
     if (search) {
@@ -65,7 +64,12 @@ const getProducts = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    // Always paginate — default to page 1
+    if (farmer) {
+      where.farmer = {
+        name: { contains: farmer, mode: 'insensitive' }
+      };
+    }
+
     const currentPage = parseInt(page) || 1;
     const pageSize = parseInt(limit) || 12;
     const skip = (currentPage - 1) * pageSize;
@@ -200,14 +204,12 @@ const uploadProductImage = async (req, res) => {
   }
 };
 
-// ===== SMART RECOMMENDATIONS (with Wishlist weighting) =====
 const getRecommendations = async (req, res) => {
   try {
     let recommended = [];
     const limit = 6;
 
     if (req.user && req.user.role === 'buyer') {
-      // 1. Fetch buyer's past orders, views, AND wishlist
       const [orders, views, wishlist] = await Promise.all([
         prisma.order.findMany({
           where: { buyerId: req.user.id },
@@ -218,12 +220,11 @@ const getRecommendations = async (req, res) => {
           include: { product: true }
         }).catch(() => []),
         prisma.wishlist.findMany({
-          where: { buyerId: req.user.id },
+          where: { userId: req.user.id },
           include: { product: true }
         }).catch(() => []),
       ]);
 
-      // 2. Weight categories
       const categoryWeights = {};
       
       orders.forEach(order => {
@@ -238,7 +239,6 @@ const getRecommendations = async (req, res) => {
         if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 1;
       });
 
-      // NEW: Wishlist adds +2 weight
       wishlist.forEach(item => {
         const cat = item.product?.legacyCategory;
         if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 2;
@@ -265,7 +265,6 @@ const getRecommendations = async (req, res) => {
       }
     }
 
-    // Fallback: fill with highest-rated products
     if (recommended.length < limit) {
       const excludeIds = recommended.map(p => p.id);
       const fallbackProducts = await prisma.product.findMany({
@@ -304,7 +303,6 @@ const recordProductView = async (req, res) => {
   }
 };
 
-// ===== EXISTING FUNCTIONS =====
 const getMyProducts = async (req, res) => {
   try {
     const products = await prisma.product.findMany({
