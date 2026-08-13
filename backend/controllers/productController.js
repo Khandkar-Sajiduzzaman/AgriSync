@@ -204,6 +204,7 @@ const uploadProductImage = async (req, res) => {
   }
 };
 
+// ===== FIXED SMART RECOMMENDATIONS =====
 const getRecommendations = async (req, res) => {
   try {
     let recommended = [];
@@ -229,42 +230,57 @@ const getRecommendations = async (req, res) => {
       
       orders.forEach(order => {
         order.items.forEach(item => {
-          const cat = item.product?.legacyCategory;
+          const cat = item.product?.legacyCategory?.trim();
           if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 3;
         });
       });
 
       views.forEach(view => {
-        const cat = view.product?.legacyCategory;
+        const cat = view.product?.legacyCategory?.trim();
         if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 1;
       });
 
       wishlist.forEach(item => {
-        const cat = item.product?.legacyCategory;
-        if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 2;
+        const cat = item.product?.legacyCategory?.trim();
+        if (cat) categoryWeights[cat] = (categoryWeights[cat] || 0) + 5;
       });
 
       console.log('Recommendation weights for buyer', req.user.id, ':', categoryWeights);
 
-      const preferredCategories = Object.keys(categoryWeights)
-        .sort((a, b) => categoryWeights[b] - categoryWeights[a])
+      const sortedCategories = Object.entries(categoryWeights)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat]) => cat)
         .slice(0, 3);
 
-      console.log('Preferred categories:', preferredCategories);
+      console.log('Preferred categories (in order):', sortedCategories);
 
-      if (preferredCategories.length > 0) {
-        recommended = await prisma.product.findMany({
+      // FIXED: Cap each category so we get a MIX
+      // Top category: 3 slots, Second: 2 slots, Third: 1 slot
+      const categoryLimits = [3, 2, 1];
+
+      for (let i = 0; i < sortedCategories.length; i++) {
+        const cat = sortedCategories[i];
+        const needed = limit - recommended.length;
+        if (needed <= 0) break;
+
+        const catLimit = Math.min(categoryLimits[i] || 1, needed);
+
+        const catProducts = await prisma.product.findMany({
           where: {
-            legacyCategory: { in: preferredCategories },
-            isAvailable: true
+            legacyCategory: cat,
+            isAvailable: true,
+            id: { notIn: recommended.length > 0 ? recommended.map(p => p.id) : undefined }
           },
           orderBy: { averageRating: 'desc' },
-          take: limit,
+          take: catLimit,
           include: { farmer: { select: { id: true, name: true, email: true, phone: true, address: true } } }
         });
+
+        recommended.push(...catProducts);
       }
     }
 
+    // Fallback: fill remaining slots with globally highest-rated
     if (recommended.length < limit) {
       const excludeIds = recommended.map(p => p.id);
       const fallbackProducts = await prisma.product.findMany({
@@ -280,6 +296,7 @@ const getRecommendations = async (req, res) => {
     }
 
     console.log('Returning', recommended.length, 'recommendations');
+    console.log('Category order in results:', recommended.map(p => p.legacyCategory));
     res.json(recommended.map(shapeProduct));
   } catch (error) {
     console.error('Get recommendations error:', error);

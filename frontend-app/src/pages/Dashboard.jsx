@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { getProducts, getRecommendations } from "../api/productApi"
-import { getWishlist, toggleWishlist } from "../api/userApi"  // ADD THIS
+import { getWishlist, toggleWishlist } from "../api/userApi"
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles } from "lucide-react"
+import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles, Scale } from "lucide-react"
 import { FaTruck } from "react-icons/fa"
 
 function Dashboard() {
@@ -14,13 +14,13 @@ function Dashboard() {
   const [products, setProducts] = useState([])
   const [recommendations, setRecommendations] = useState([])
   const [recLoading, setRecLoading] = useState(false)
-  const [wishlistIds, setWishlistIds] = useState([])  // ADD THIS
+  const [wishlistIds, setWishlistIds] = useState([])
 
   useEffect(() => {
     loadProducts()
     if (role === "buyer") {
       loadRecommendations()
-      loadWishlist()  // ADD THIS
+      loadWishlist()
     }
   }, [])
 
@@ -45,7 +45,6 @@ function Dashboard() {
     }
   }
 
-  // ADD THIS FUNCTION
   const loadWishlist = async () => {
     try {
       const items = await getWishlist()
@@ -55,7 +54,6 @@ function Dashboard() {
     }
   }
 
-  // ADD THIS FUNCTION
   const handleToggleWishlist = async (productId) => {
     const wasSaved = wishlistIds.includes(productId)
     setWishlistIds((prev) =>
@@ -124,8 +122,8 @@ function Dashboard() {
                   key={product._id}
                   product={product}
                   showActions={false}
-                  isWishlisted={wishlistIds.includes(product._id)}        // ADD THIS
-                  onToggleWishlist={handleToggleWishlist}                // ADD THIS
+                  isWishlisted={wishlistIds.includes(product._id)}
+                  onToggleWishlist={handleToggleWishlist}
                 />
               ))}
             </div>
@@ -133,7 +131,7 @@ function Dashboard() {
         </section>
       )}
 
-      {/* FEATURED PRODUCTS */}
+      {/* Featured Products */}
       {role !== "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Featured Products</h2>
@@ -150,8 +148,8 @@ function Dashboard() {
                   key={product._id}
                   product={product}
                   showActions={false}
-                  isWishlisted={wishlistIds.includes(product._id)}        // ADD THIS
-                  onToggleWishlist={handleToggleWishlist}                // ADD THIS
+                  isWishlisted={wishlistIds.includes(product._id)}
+                  onToggleWishlist={role === "buyer" ? handleToggleWishlist : undefined}
                 />
               ))}
             </div>
@@ -186,8 +184,9 @@ function Dashboard() {
         </section>
       )}
 
-      {/* Bottom Grid */}
-      <div className="grid grid-cols-1 gap-6">
+      {/* Bottom Grid — 2 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Delivery Zones */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-agri-700">
@@ -200,6 +199,24 @@ function Dashboard() {
               <h3 className="font-semibold text-agri-800 mt-2">Coming Soon</h3>
               <p className="text-stone-600 text-sm mt-1 max-w-sm mx-auto">
                 Farmers will soon define delivery zones and buyers will see availability.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Nutrition Comparison */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-agri-700">
+              <Scale className="w-5 h-5" /> Nutrition Comparison
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="border-2 border-dashed border-agri-300 rounded-xl p-12 text-center bg-agri-50">
+              <span className="text-4xl">🥗</span>
+              <h3 className="font-semibold text-agri-800 mt-2">Coming in Sprint 4</h3>
+              <p className="text-stone-600 text-sm mt-1 max-w-sm mx-auto">
+                Compare products side-by-side by price, ratings, nutritional values, and availability.
               </p>
             </div>
           </CardContent>
