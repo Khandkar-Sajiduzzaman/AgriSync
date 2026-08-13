@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { getProducts } from "../api/productApi"
+import { getProducts, getRecommendations } from "../api/productApi"
+import { getWishlist, toggleWishlist } from "../api/userApi"
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Scale } from "lucide-react"
+import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles, Scale } from "lucide-react"
 import { FaTruck } from "react-icons/fa"
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user"))
   const role = user?.role
   const [products, setProducts] = useState([])
+  const [recommendations, setRecommendations] = useState([])
+  const [recLoading, setRecLoading] = useState(false)
+  const [wishlistIds, setWishlistIds] = useState([])
 
   useEffect(() => {
     loadProducts()
+    if (role === "buyer") {
+      loadRecommendations()
+      loadWishlist()
+    }
   }, [])
 
   const loadProducts = async () => {
@@ -22,6 +30,42 @@ function Dashboard() {
       setProducts(response.data || [])
     } catch (err) {
       console.log(err)
+    }
+  }
+
+  const loadRecommendations = async () => {
+    setRecLoading(true)
+    try {
+      const data = await getRecommendations()
+      setRecommendations(data || [])
+    } catch (err) {
+      console.error("Failed to load recommendations:", err)
+    } finally {
+      setRecLoading(false)
+    }
+  }
+
+  const loadWishlist = async () => {
+    try {
+      const items = await getWishlist()
+      setWishlistIds(items.map((p) => p._id))
+    } catch (err) {
+      console.error("Failed to load wishlist:", err)
+    }
+  }
+
+  const handleToggleWishlist = async (productId) => {
+    const wasSaved = wishlistIds.includes(productId)
+    setWishlistIds((prev) =>
+      wasSaved ? prev.filter((id) => id !== productId) : [...prev, productId]
+    )
+    try {
+      await toggleWishlist(productId)
+    } catch (err) {
+      setWishlistIds((prev) =>
+        wasSaved ? [...prev, productId] : prev.filter((id) => id !== productId)
+      )
+      console.error("Wishlist toggle failed:", err.message)
     }
   }
 
@@ -53,7 +97,41 @@ function Dashboard() {
         )}
       </div>
 
-      {/* Featured Products — only for buyers and farmers */}
+      {/* RECOMMENDED FOR YOU */}
+      {role === "buyer" && (
+        <section>
+          <h2 className="text-2xl font-bold text-agri-800 mb-4 flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-yellow-500" /> Recommended for You
+          </h2>
+          {recLoading ? (
+            <Card>
+              <CardContent className="p-12 text-center text-stone-500">
+                Loading recommendations...
+              </CardContent>
+            </Card>
+          ) : recommendations.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-stone-500">
+                Start browsing and adding items to your wishlist to get personalized recommendations!
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recommendations.map((product) => (
+                <ProductCard
+                  key={product._id}
+                  product={product}
+                  showActions={false}
+                  isWishlisted={wishlistIds.includes(product._id)}
+                  onToggleWishlist={handleToggleWishlist}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Featured Products */}
       {role !== "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Featured Products</h2>
@@ -66,14 +144,20 @@ function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.map((product) => (
-                <ProductCard key={product._id} product={product} showActions={false} />
+                <ProductCard
+                  key={product._id}
+                  product={product}
+                  showActions={false}
+                  isWishlisted={wishlistIds.includes(product._id)}
+                  onToggleWishlist={role === "buyer" ? handleToggleWishlist : undefined}
+                />
               ))}
             </div>
           )}
         </section>
       )}
 
-      {/* Delivery Man — quick stats instead of products */}
+      {/* Delivery Man stats */}
       {role === "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Today's Overview</h2>
@@ -100,7 +184,7 @@ function Dashboard() {
         </section>
       )}
 
-      {/* Bottom Grid — 2 columns on medium screens */}
+      {/* Bottom Grid — 2 columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Delivery Zones */}
         <Card>
@@ -120,7 +204,7 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Nutrition Comparison — NEW */}
+        {/* Nutrition Comparison */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-agri-700">
