@@ -1,27 +1,19 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { getProducts, getRecommendations } from "../api/productApi"
-import { getWishlist, toggleWishlist } from "../api/userApi"  // ADD THIS
+import { getProducts } from "../api/productApi"
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles } from "lucide-react"
+import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Scale } from "lucide-react"
 import { FaTruck } from "react-icons/fa"
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user"))
   const role = user?.role
   const [products, setProducts] = useState([])
-  const [recommendations, setRecommendations] = useState([])
-  const [recLoading, setRecLoading] = useState(false)
-  const [wishlistIds, setWishlistIds] = useState([])  // ADD THIS
 
   useEffect(() => {
     loadProducts()
-    if (role === "buyer") {
-      loadRecommendations()
-      loadWishlist()  // ADD THIS
-    }
   }, [])
 
   const loadProducts = async () => {
@@ -30,44 +22,6 @@ function Dashboard() {
       setProducts(response.data || [])
     } catch (err) {
       console.log(err)
-    }
-  }
-
-  const loadRecommendations = async () => {
-    setRecLoading(true)
-    try {
-      const data = await getRecommendations()
-      setRecommendations(data || [])
-    } catch (err) {
-      console.error("Failed to load recommendations:", err)
-    } finally {
-      setRecLoading(false)
-    }
-  }
-
-  // ADD THIS FUNCTION
-  const loadWishlist = async () => {
-    try {
-      const items = await getWishlist()
-      setWishlistIds(items.map((p) => p._id))
-    } catch (err) {
-      console.error("Failed to load wishlist:", err)
-    }
-  }
-
-  // ADD THIS FUNCTION
-  const handleToggleWishlist = async (productId) => {
-    const wasSaved = wishlistIds.includes(productId)
-    setWishlistIds((prev) =>
-      wasSaved ? prev.filter((id) => id !== productId) : [...prev, productId]
-    )
-    try {
-      await toggleWishlist(productId)
-    } catch (err) {
-      setWishlistIds((prev) =>
-        wasSaved ? [...prev, productId] : prev.filter((id) => id !== productId)
-      )
-      console.error("Wishlist toggle failed:", err.message)
     }
   }
 
@@ -99,41 +53,7 @@ function Dashboard() {
         )}
       </div>
 
-      {/* RECOMMENDED FOR YOU */}
-      {role === "buyer" && (
-        <section>
-          <h2 className="text-2xl font-bold text-agri-800 mb-4 flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-yellow-500" /> Recommended for You
-          </h2>
-          {recLoading ? (
-            <Card>
-              <CardContent className="p-12 text-center text-stone-500">
-                Loading recommendations...
-              </CardContent>
-            </Card>
-          ) : recommendations.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center text-stone-500">
-                Start browsing and adding items to your wishlist to get personalized recommendations!
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recommendations.map((product) => (
-                <ProductCard
-                  key={product._id}
-                  product={product}
-                  showActions={false}
-                  isWishlisted={wishlistIds.includes(product._id)}        // ADD THIS
-                  onToggleWishlist={handleToggleWishlist}                // ADD THIS
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* FEATURED PRODUCTS */}
+      {/* Featured Products — only for buyers and farmers */}
       {role !== "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Featured Products</h2>
@@ -146,20 +66,14 @@ function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.map((product) => (
-                <ProductCard
-                  key={product._id}
-                  product={product}
-                  showActions={false}
-                  isWishlisted={wishlistIds.includes(product._id)}        // ADD THIS
-                  onToggleWishlist={handleToggleWishlist}                // ADD THIS
-                />
+                <ProductCard key={product._id} product={product} showActions={false} />
               ))}
             </div>
           )}
         </section>
       )}
 
-      {/* Delivery Man stats */}
+      {/* Delivery Man — quick stats instead of products */}
       {role === "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Today's Overview</h2>
@@ -186,8 +100,9 @@ function Dashboard() {
         </section>
       )}
 
-      {/* Bottom Grid */}
-      <div className="grid grid-cols-1 gap-6">
+      {/* Bottom Grid — 2 columns on medium screens */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Delivery Zones */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-agri-700">
@@ -200,6 +115,24 @@ function Dashboard() {
               <h3 className="font-semibold text-agri-800 mt-2">Coming Soon</h3>
               <p className="text-stone-600 text-sm mt-1 max-w-sm mx-auto">
                 Farmers will soon define delivery zones and buyers will see availability.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Nutrition Comparison — NEW */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-agri-700">
+              <Scale className="w-5 h-5" /> Nutrition Comparison
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="border-2 border-dashed border-agri-300 rounded-xl p-12 text-center bg-agri-50">
+              <span className="text-4xl">🥗</span>
+              <h3 className="font-semibold text-agri-800 mt-2">Coming in Sprint 4</h3>
+              <p className="text-stone-600 text-sm mt-1 max-w-sm mx-auto">
+                Compare products side-by-side by price, ratings, nutritional values, and availability.
               </p>
             </div>
           </CardContent>
