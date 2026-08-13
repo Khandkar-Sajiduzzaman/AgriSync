@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { getProducts, getRecommendations } from "../api/productApi"
+import { getWishlist, toggleWishlist } from "../api/userApi"  // ADD THIS
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,11 +14,13 @@ function Dashboard() {
   const [products, setProducts] = useState([])
   const [recommendations, setRecommendations] = useState([])
   const [recLoading, setRecLoading] = useState(false)
+  const [wishlistIds, setWishlistIds] = useState([])  // ADD THIS
 
   useEffect(() => {
     loadProducts()
     if (role === "buyer") {
       loadRecommendations()
+      loadWishlist()  // ADD THIS
     }
   }, [])
 
@@ -39,6 +42,32 @@ function Dashboard() {
       console.error("Failed to load recommendations:", err)
     } finally {
       setRecLoading(false)
+    }
+  }
+
+  // ADD THIS FUNCTION
+  const loadWishlist = async () => {
+    try {
+      const items = await getWishlist()
+      setWishlistIds(items.map((p) => p._id))
+    } catch (err) {
+      console.error("Failed to load wishlist:", err)
+    }
+  }
+
+  // ADD THIS FUNCTION
+  const handleToggleWishlist = async (productId) => {
+    const wasSaved = wishlistIds.includes(productId)
+    setWishlistIds((prev) =>
+      wasSaved ? prev.filter((id) => id !== productId) : [...prev, productId]
+    )
+    try {
+      await toggleWishlist(productId)
+    } catch (err) {
+      setWishlistIds((prev) =>
+        wasSaved ? [...prev, productId] : prev.filter((id) => id !== productId)
+      )
+      console.error("Wishlist toggle failed:", err.message)
     }
   }
 
@@ -70,7 +99,7 @@ function Dashboard() {
         )}
       </div>
 
-      {/* RECOMMENDED FOR YOU — only for buyers */}
+      {/* RECOMMENDED FOR YOU */}
       {role === "buyer" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4 flex items-center gap-2">
@@ -91,14 +120,20 @@ function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {recommendations.map((product) => (
-                <ProductCard key={product._id} product={product} showActions={false} />
+                <ProductCard
+                  key={product._id}
+                  product={product}
+                  showActions={false}
+                  isWishlisted={wishlistIds.includes(product._id)}        // ADD THIS
+                  onToggleWishlist={handleToggleWishlist}                // ADD THIS
+                />
               ))}
             </div>
           )}
         </section>
       )}
 
-      {/* Featured Products — for everyone except delivery_man */}
+      {/* FEATURED PRODUCTS */}
       {role !== "delivery_man" && (
         <section>
           <h2 className="text-2xl font-bold text-agri-800 mb-4">Featured Products</h2>
@@ -111,7 +146,13 @@ function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.map((product) => (
-                <ProductCard key={product._id} product={product} showActions={false} />
+                <ProductCard
+                  key={product._id}
+                  product={product}
+                  showActions={false}
+                  isWishlisted={wishlistIds.includes(product._id)}        // ADD THIS
+                  onToggleWishlist={handleToggleWishlist}                // ADD THIS
+                />
               ))}
             </div>
           )}
