@@ -63,7 +63,7 @@ const createProduct = async (req, res) => {
 
 const getProducts = async (req, res) => {
   try {
-    const { search, category, minPrice, maxPrice, page, limit } = req.query;
+    const { search, category, minPrice, maxPrice, page, limit, farmer } = req.query;
     const where = {};
 
     if (search) {
@@ -288,6 +288,8 @@ const getRecommendations = async (req, res) => {
           },
           take: 8,
         });
+
+        recommended.push(...catProducts);
       }
     }
 
@@ -308,6 +310,8 @@ const getRecommendations = async (req, res) => {
       });
     }
 
+    console.log('Returning', recommended.length, 'recommendations');
+    console.log('Category order in results:', recommended.map(p => p.legacyCategory));
     res.json(recommended.map(shapeProduct));
   } catch (error) {
     console.error('Get recommendations error:', error);

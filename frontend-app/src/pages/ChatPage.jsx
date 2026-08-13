@@ -7,6 +7,7 @@ function ChatPage() {
   const [activePartner, setActivePartner] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [sendError, setSendError] = useState("");
   const [loading, setLoading] = useState(true);
   
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -55,7 +56,8 @@ function ChatPage() {
   const handleSend = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !activePartner) return;
-    
+    setSendError("");
+
     // Optimistic UI update
     const tempMsg = {
       id: Date.now().toString(),
@@ -70,6 +72,9 @@ function ChatPage() {
       await sendMessage({ receiverId: activePartner.id, content: tempMsg.content });
       loadConversations(); // Update latest message in sidebar
     } catch (err) {
+      // Remove the optimistic message since it was blocked
+      setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
+      setSendError(err.message || "Message could not be sent.");
       console.error(err);
     }
   };
@@ -92,7 +97,10 @@ function ChatPage() {
             conversations.map((conv) => (
               <div
                 key={conv.partner.id}
-                onClick={() => setActivePartner(conv.partner)}
+                onClick={() => {
+                  setActivePartner(conv.partner);
+                  setSendError("");
+                }}
                 className={`p-4 border-b border-stone-100 cursor-pointer transition-colors ${
                   activePartner?.id === conv.partner.id ? "bg-agri-50 border-l-4 border-l-agri-600" : "hover:bg-stone-100"
                 }`}
@@ -161,23 +169,30 @@ function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <form onSubmit={handleSend} className="p-4 border-t border-stone-200 bg-white flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-agri-500 focus:border-transparent"
-              />
-              <button
-                type="submit"
-                disabled={!newMessage.trim()}
-                className="px-4 py-2 bg-agri-600 text-white rounded-lg hover:bg-agri-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </form>
+            {/* Input Area with Error Banner */}
+            <div className="p-4 border-t border-stone-200 bg-white">
+              {sendError && (
+                <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+                  ⚠️ {sendError}
+                </div>
+              )}
+              <form onSubmit={handleSend} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-agri-500 focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim()}
+                  className="px-4 py-2 bg-agri-600 text-white rounded-lg hover:bg-agri-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
+            </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center flex-col text-stone-400">
