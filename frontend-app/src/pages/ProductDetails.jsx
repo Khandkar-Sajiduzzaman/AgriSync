@@ -24,6 +24,37 @@ function ProductDetails() {
     loadData();
   }, [id]);
 
+  // Check delivery coverage for buyers
+  useEffect(() => {
+    const checkDelivery = async () => {
+      try {
+        if (!product) return;
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const isBuyer = user?.role === 'buyer';
+        if (!isBuyer) return;
+        const { checkDeliveryCoverage } = await import('../api/deliveryZoneApi');
+        // Prefer lat/lng if buyer stored location, otherwise use address field
+        const lat = user.latitude;
+        const lng = user.longitude;
+        const location = user.address || user.district || user.division || '';
+        let res;
+        if (lat && lng) {
+          res = await checkDeliveryCoverage({ farmerUserId: product.farmer?._id, lat, lng });
+        } else if (location) {
+          res = await checkDeliveryCoverage({ farmerUserId: product.farmer?._id, location });
+        } else {
+          // no buyer location available — skip
+          return;
+        }
+        // attach info to product state
+        setProduct((p) => ({ ...p, deliveryAvailability: res }));
+      } catch (err) {
+        console.error('Failed to check delivery coverage', err);
+      }
+    };
+    checkDelivery();
+  }, [product]);
+
   useEffect(() => {
     if (id) loadReviews();
   }, [id, reviewSort]);
@@ -153,6 +184,16 @@ function ProductDetails() {
             <p style={{ margin: 0 }}><strong>Stock:</strong> {product.stock} {product.unit}</p>
             <p style={{ margin: 0 }}><strong>Farmer:</strong> {product.farmer?.name}</p>
           </div>
+ 
+          {product.deliveryAvailability && (
+            <div style={{ marginTop: 8, padding: '10px', borderRadius: 8, background: product.deliveryAvailability.delivers ? '#ecfdf5' : '#fff1f2', color: product.deliveryAvailability.delivers ? '#065f46' : '#991b1b' }}>
+              {product.deliveryAvailability.delivers ? (
+                <div>Delivery available to your location{product.deliveryAvailability.matchedZone ? ` — ${product.deliveryAvailability.matchedZone.name}` : ''}.</div>
+              ) : (
+                <div>Delivery not available to your location.</div>
+              )}
+            </div>
+          )}
 
           {role === "buyer" && (
             <div style={{ display: "flex", gap: "10px" }}>

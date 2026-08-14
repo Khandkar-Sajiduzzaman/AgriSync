@@ -194,14 +194,19 @@ function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="border-2 border-dashed border-agri-300 rounded-xl p-12 text-center bg-agri-50">
-              <span className="text-4xl">🗺️</span>
-              <h3 className="font-semibold text-agri-800 mt-2">Coming Soon</h3>
-              <p className="text-stone-600 text-sm mt-1 max-w-sm mx-auto">
-                Farmers will soon define delivery zones and buyers will see availability.
-              </p>
-            </div>
-          </CardContent>
+           <div className="rounded-xl p-4 bg-agri-50">
+             <h4 className="font-semibold text-agri-800 mb-2">Manage Delivery Zones</h4>
+             <p className="text-stone-600 text-sm mb-4">Define where you deliver so buyers can see availability.</p>
+             <div className="flex gap-2">
+               {role === 'farmer' ? (
+                 <Link to="/farmer/delivery-zones" className="inline-block px-3 py-2 bg-agri-700 text-white rounded">Manage Zones</Link>
+               ) : (
+                 <Link to="/delivery-zones" className="inline-block px-3 py-2 bg-agri-700 text-white rounded">View Zones</Link>
+               )}
+               <Link to="/" className="inline-block px-3 py-2 border rounded">Learn more</Link>
+             </div>
+           </div>
+         </CardContent>
         </Card>
 
         {/* Nutrition Comparison */}

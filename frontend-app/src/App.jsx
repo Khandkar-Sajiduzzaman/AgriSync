@@ -24,6 +24,8 @@ import ChatPage from "./pages/ChatPage";
 
 // DeliveryDashboard
 import DeliveryDashboard from "./pages/DeliveryDashboard";
+import DeliveryZones from "./pages/DeliveryZones";
+import DeliveryZonesPublic from "./pages/DeliveryZonesPublic";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -119,6 +121,18 @@ function App() {
         <Route
           path="/delivery"
           element={role === "delivery_man" ? <DeliveryDashboard /> : <Navigate to="/" replace />}
+        />
+
+        {/* Farmer: Delivery Zones management */}
+        <Route
+          path="/farmer/delivery-zones"
+          element={role === "farmer" ? <DeliveryZones /> : <Navigate to="/" replace />}
+        />
+
+        {/* Public/Buyer: View delivery zones */}
+        <Route
+          path="/delivery-zones"
+          element={<DeliveryZonesPublic />}
         />
       </Route>
       {/* Unknown Routes */}
