@@ -26,6 +26,8 @@ import ChatPage from "./pages/ChatPage";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
 import DeliveryZones from "./pages/DeliveryZones";
 import DeliveryZonesPublic from "./pages/DeliveryZonesPublic";
+import InventoryManagement from "./pages/InventoryManagement";
+import InventoryRequestPage from "./pages/InventoryRequestPage";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -82,6 +84,12 @@ function App() {
         {/* Farmer Products */}
         <Route path="/products/my" element={<MyProducts />} />
 
+        {/* Farmer Inventory Requests */}
+        <Route
+          path="/inventory/requests"
+          element={role === "farmer" ? <InventoryRequestPage /> : <Navigate to="/" replace />}
+        />
+
         {/* Edit Product */}
         <Route path="/products/:id/edit" element={<EditProduct />} />
 
@@ -133,6 +141,12 @@ function App() {
         <Route
           path="/delivery-zones"
           element={<DeliveryZonesPublic />}
+        />
+
+        {/* Admin Inventory Management */}
+        <Route
+          path="/inventory-management"
+          element={role === "admin" ? <InventoryManagement /> : <Navigate to="/" replace />}
         />
       </Route>
       {/* Unknown Routes */}
