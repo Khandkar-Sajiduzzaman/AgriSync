@@ -102,6 +102,12 @@ enum NotificationType {
   stock_alert
 }
 
+enum InventoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum UnitType {
   kg
   gram
@@ -152,6 +158,10 @@ model User {
 
   // --- Relations: Products (farmer creates products) ---
   products      Product[]   // Products this farmer created
+
+  // --- Relations: Inventory change requests ---
+  inventoryRequests        InventoryChangeRequest[] @relation("InventoryRequestFarmer")
+  reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")
 
   // --- Relations: Wishlist & Follow ---
   wishlist      Wishlist[]
@@ -350,6 +360,7 @@ model Product {
   cartItems       CartItem[]
   negotiations    Negotiation[]
   inventoryLogs   InventoryLog[]
+  inventoryChangeRequests InventoryChangeRequest[]
   promotions      ProductPromotion[]
   productViews    ProductView[]
   productVotes    ProductVote[]
@@ -732,6 +743,33 @@ model Notification {
 // Matches class diagram: Inventory with stockQuantity, lastUpdated.
 // This goes beyond the diagram by tracking EVERY change, not just the current state.
 // =============================================================================
+
+model InventoryChangeRequest {
+  id             String                   @id @default(uuid())
+  farmerId       String
+  farmer         User                     @relation("InventoryRequestFarmer", fields: [farmerId], references: [id], onDelete: Cascade)
+
+  productId      String
+  product        Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  currentStock   Int
+  requestedStock Int
+  reason         String                   @db.Text
+  status         InventoryRequestStatus   @default(PENDING)
+
+  reviewedById   String?
+  reviewedBy     User?                    @relation("InventoryRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason String?                  @db.Text
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([farmerId])
+  @@index([productId])
+  @@index([status])
+}
 
 model InventoryLog {
   id          String   @id @default(uuid())

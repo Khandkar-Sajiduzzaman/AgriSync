@@ -55,6 +55,10 @@ function Navbar({ onLogout }) {
               <FaBoxOpen /> My Products
             </Link>
 
+            <Link className={active("/inventory/requests")} to="/inventory/requests">
+              <FaBoxOpen /> Inventory Requests
+            </Link>
+
             <Link className={active("/chat")} to="/chat">
               <FaCommentDots /> Messages
             </Link>
@@ -109,6 +113,12 @@ function Navbar({ onLogout }) {
         {role === "delivery_man" && (
           <Link className={active("/delivery")} to="/delivery">
             <FaTruck /> My Deliveries
+          </Link>
+        )}
+
+        {role === "admin" && (
+          <Link className={active("/inventory-management")} to="/inventory-management">
+            <FaBoxOpen /> Inventory
           </Link>
         )}
 
