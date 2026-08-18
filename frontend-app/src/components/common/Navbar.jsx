@@ -12,16 +12,19 @@ import {
   FaClipboardList,
   FaCommentDots,
   FaTruck,
+  FaBalanceScale,
 } from "react-icons/fa";
 
 import "../../styles/navbar.css";
 import { useCart } from "../../context/CartContext";
+import { useCompare } from "../../context/CompareContext";
 
 function Navbar({ onLogout }) {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user"));
   const role = user?.role;
   const { cartCount } = useCart();
+  const { compareIds } = useCompare();
 
   const active = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";
@@ -102,6 +105,27 @@ function Navbar({ onLogout }) {
 
             <Link className={active("/wishlist")} to="/wishlist">
               <FaHeart /> Wishlist
+            </Link>
+
+            <Link className={active("/compare")} to="/compare" style={{ position: "relative" }}>
+              <FaBalanceScale /> Compare
+              {compareIds.length > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-6px",
+                    right: "-10px",
+                    background: "#2E7D32",
+                    color: "white",
+                    borderRadius: "50%",
+                    padding: "2px 7px",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {compareIds.length}
+                </span>
+              )}
             </Link>
 
             <Link className={active("/orders")} to="/orders">

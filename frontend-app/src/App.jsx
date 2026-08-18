@@ -12,6 +12,7 @@ import EditProduct from "./pages/EditProduct";
 import ProductDetails from "./pages/ProductDetails";
 import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
+import ComparePage from "./pages/ComparePage";
 
 // NEW PAGES for Place Order feature
 import CartPage from "./pages/CartPage";
@@ -68,6 +69,12 @@ function App() {
 
         {/* Browse Products */}
         <Route path="/products/browse" element={<BrowseProducts />} />
+
+        {/* Product Comparison (Buyer only) */}
+        <Route
+          path="/compare"
+          element={role === "buyer" ? <ComparePage /> : <Navigate to="/" replace />}
+        />
 
         {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />

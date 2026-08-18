@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getProducts, getCategories } from "../api/productApi";
 import { getWishlist, toggleWishlist } from "../api/userApi";
 import ProductCard from "../components/product/ProductCard";
+import CompareBar from "../components/product/CompareBar";
 
 function BrowseProducts() {
   const [products, setProducts] = useState([]);
@@ -300,9 +301,12 @@ function BrowseProducts() {
             showActions={false}
             isWishlisted={wishlistIds.includes(product._id)}
             onToggleWishlist={role === "buyer" ? handleToggleWishlist : undefined}
+            showCompare={role === "buyer"}
           />
         ))}
       </div>
+
+      <CompareBar />
     </div>
   );
 }
