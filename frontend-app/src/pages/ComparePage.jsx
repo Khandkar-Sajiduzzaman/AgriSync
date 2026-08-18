@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCompare } from "../context/CompareContext";
 import { getComparisonProducts } from "../api/comparisonApi";
@@ -37,16 +37,12 @@ const bestCellStyle = {
   borderLeft: "3px solid #10b981",
 };
 
-// Returns the numeric value for a given field, or null if missing/not a number
 const toNumber = (v) => {
   if (v === undefined || v === null || v === "") return null;
   const n = Number(v);
   return Number.isNaN(n) ? null : n;
 };
 
-// Given an array of numeric-or-null values and a direction ("higher" | "lower" | null),
-// returns a Set of indices that count as "best". Ties are all marked best.
-// Only marks a winner if at least 2 products have a real numeric value to compare.
 const getBestIndices = (values, direction) => {
   if (!direction) return new Set();
   const numeric = values.map(toNumber);
@@ -64,7 +60,6 @@ const getBestIndices = (values, direction) => {
   return best;
 };
 
-// Small dependency-free horizontal bar chart for one metric across products
 function MetricBarChart({ label, unit, entries }) {
   const max = Math.max(...entries.map((e) => e.value), 0.0001);
 
@@ -110,11 +105,178 @@ function MetricBarChart({ label, unit, entries }) {
   );
 }
 
+// Computes nutrient score = protein + fiber + carbs - (fat * fatWeight) - (calories * calorieWeight)
+// Returns null if the product has no usable nutrition data at all.
+function computeNutrientScore(nutrition, fatWeight, calorieWeight) {
+  if (!nutrition) return null;
+
+  const protein = toNumber(nutrition.protein) || 0;
+  const fiber = toNumber(nutrition.fiber) || 0;
+  const carbs = toNumber(nutrition.carbs) || 0;
+  const fat = toNumber(nutrition.fat) || 0;
+  const calories = toNumber(nutrition.calories) || 0;
+
+  const hasAnyData = [
+    nutrition.protein, nutrition.fiber, nutrition.carbs, nutrition.fat, nutrition.calories,
+  ].some((v) => toNumber(v) !== null);
+
+  if (!hasAnyData) return null;
+
+  return protein + fiber + carbs - fat * fatWeight - calories * calorieWeight;
+}
+
+function BestValueBox({ products, fatWeight, calorieWeight, onFatWeightChange, onCalorieWeightChange }) {
+  const rows = useMemo(() => {
+    return products.map((p) => {
+      const price = toNumber(p.price);
+      const nutrientScore = computeNutrientScore(p.nutrition, fatWeight, calorieWeight);
+      const hasEnoughData = price !== null && price > 0 && nutrientScore !== null;
+      const valueScore = hasEnoughData ? nutrientScore / price : null;
+      return { name: p.name, price, nutrientScore, valueScore, hasEnoughData };
+    });
+  }, [products, fatWeight, calorieWeight]);
+
+  const rankable = rows.filter((r) => r.hasEnoughData);
+  const winner = rankable.length > 0
+    ? rankable.reduce((best, r) => (r.valueScore > best.valueScore ? r : best), rankable[0])
+    : null;
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: "12px",
+        border: "1px solid #e5e7eb",
+        padding: "20px",
+        marginBottom: "24px",
+      }}
+    >
+      <h3 style={{ margin: "0 0 4px 0", fontSize: "16px", color: "#1B5E20" }}>
+        Best Value (Nutrition per Taka)
+      </h3>
+      <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#6b7280" }}>
+        Score = protein + fiber + carbs − (fat × fat weight) − (calories × calorie weight), divided by price.
+        Higher means more nutrition for your money.
+      </p>
+
+      <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", marginBottom: "18px" }}>
+        <div>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#374151", marginBottom: "4px" }}>
+            Fat weight
+          </label>
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            max="2"
+            value={fatWeight}
+            onChange={(e) => onFatWeightChange(parseFloat(e.target.value) || 0)}
+            style={{
+              width: "90px",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #d1d5db",
+              fontSize: "13px",
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#374151", marginBottom: "4px" }}>
+            Calorie weight
+          </label>
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            max="2"
+            value={calorieWeight}
+            onChange={(e) => onCalorieWeightChange(parseFloat(e.target.value) || 0)}
+            style={{
+              width: "90px",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #d1d5db",
+              fontSize: "13px",
+            }}
+          />
+        </div>
+      </div>
+
+      {winner && (
+        <div
+          style={{
+            background: "#ecfdf5",
+            border: "1px solid #a7f3d0",
+            borderRadius: "8px",
+            padding: "14px 16px",
+            marginBottom: "16px",
+            fontSize: "14px",
+            color: "#065f46",
+            fontWeight: "600",
+          }}
+        >
+          🏆 {winner.name} gives the most bang for your buck
+        </div>
+      )}
+
+      {!winner && (
+        <div
+          style={{
+            background: "#f9fafb",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            padding: "14px 16px",
+            marginBottom: "16px",
+            fontSize: "13px",
+            color: "#6b7280",
+          }}
+        >
+          Not enough nutrition data was entered to calculate a winner.
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, 1fr)`, gap: "12px" }}>
+        {rows.map((r) => (
+          <div
+            key={r.name}
+            style={{
+              padding: "12px",
+              borderRadius: "8px",
+              border: winner?.name === r.name ? "2px solid #10b981" : "1px solid #e5e7eb",
+              background: winner?.name === r.name ? "#ecfdf5" : "#fafafa",
+            }}
+          >
+            <p style={{ margin: "0 0 6px 0", fontSize: "13px", fontWeight: "700", color: "#111827" }}>
+              {r.name}
+            </p>
+            {r.hasEnoughData ? (
+              <>
+                <p style={{ margin: "0 0 2px 0", fontSize: "12px", color: "#6b7280" }}>
+                  Nutrient score: <strong>{r.nutrientScore.toFixed(2)}</strong>
+                </p>
+                <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>
+                  Value score: <strong>{r.valueScore.toFixed(3)}</strong> / ৳
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0, fontSize: "12px", color: "#9ca3af" }}>
+                Not enough data
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ComparePage() {
   const { compareIds, removeFromCompare, clearCompare } = useCompare();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fatWeight, setFatWeight] = useState(0.4);
+  const [calorieWeight, setCalorieWeight] = useState(0.3);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -164,12 +326,9 @@ function ComparePage() {
     );
   }
 
-  // Precompute "best" indices for price and rating
   const priceBest = getBestIndices(products.map((p) => p.price), "lower");
   const ratingBest = getBestIndices(products.map((p) => p.averageRating), "higher");
 
-  // Build chart data: one entry per numeric field (price + nutrition fields with a direction),
-  // only included if at least 2 products actually have a value for it
   const chartMetrics = [
     { key: "price", label: "Price (৳)", unit: "৳", getValue: (p) => toNumber(p.price) },
     ...NUTRITION_ROWS.filter((r) => r.direction).map((r) => ({
@@ -212,6 +371,14 @@ function ComparePage() {
 
       {!loading && !error && products.length > 0 && (
         <>
+          <BestValueBox
+            products={products}
+            fatWeight={fatWeight}
+            calorieWeight={calorieWeight}
+            onFatWeightChange={setFatWeight}
+            onCalorieWeightChange={setCalorieWeight}
+          />
+
           {chartMetrics.length > 0 && (
             <div
               style={{
