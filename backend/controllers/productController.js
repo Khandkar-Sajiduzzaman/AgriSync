@@ -1,10 +1,44 @@
 const prisma = require('../config/db');
 
+// Helper: nutritionInfo is stored as a JSON string in a Text column.
+// Parse it back to an object for API responses; tolerate legacy plain-text values.
+const parseNutritionInfo = (raw) => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (err) {
+    return { note: raw }; // legacy plain-text nutrition notes
+  }
+};
+
+// Helper: accepts either an object (already structured) or a JSON string from the
+// client, and returns a JSON string ready to store in nutritionInfo. Empty/invalid
+// input returns null so we don't store junk.
+const serializeNutritionInfo = (input) => {
+  if (input === undefined || input === null || input === '') return null;
+  if (typeof input === 'object') {
+    // Drop empty objects (e.g. all fields left blank)
+    const hasValue = Object.values(input).some((v) => v !== '' && v !== null && v !== undefined);
+    return hasValue ? JSON.stringify(input) : null;
+  }
+  if (typeof input === 'string') {
+    try {
+      JSON.parse(input); // already valid JSON string
+      return input;
+    } catch (err) {
+      return input.trim() ? JSON.stringify({ note: input.trim() }) : null;
+    }
+  }
+  return null;
+};
+
 // Helper: convert Prisma Decimal to plain number + add _id alias for frontend compatibility
 const shapeProduct = (product) => ({
   ...product,
   _id: product.id,
   id: undefined,
+  nutritionInfo: parseNutritionInfo(product.nutritionInfo),
   farmer: product.farmer
     ? {
         _id: product.farmer.id,
@@ -17,7 +51,7 @@ const shapeProduct = (product) => ({
 const createProduct = async (req, res) => {
   try {
     // SECURITY & BUG FIX: Destructure FIRST, then validate
-    const { name, description, category, price, stock } = req.body;
+    const { name, description, category, price, stock, nutritionInfo } = req.body;
 
     if (!name || name.trim().length < 2 || name.trim().length > 200) {
       return res.status(400).json({ message: 'Name must be 2-200 characters' });
@@ -49,6 +83,7 @@ const createProduct = async (req, res) => {
         legacyCategory: category,
         price: productPrice,
         stock: productStock,
+        nutritionInfo: serializeNutritionInfo(nutritionInfo),
         images: [],
       },
       include: { farmer: { select: { id: true, name: true } } }, // SECURITY: no email/phone
@@ -145,7 +180,7 @@ const updateProduct = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    const { name, description, category, price, stock } = req.body;
+    const { name, description, category, price, stock, nutritionInfo } = req.body;
     const data = {};
 
     if (name !== undefined) {
@@ -169,6 +204,9 @@ const updateProduct = async (req, res) => {
         return res.status(400).json({ message: 'Invalid stock' });
       }
       data.stock = productStock;
+    }
+    if (nutritionInfo !== undefined) {
+      data.nutritionInfo = serializeNutritionInfo(nutritionInfo);
     }
 
     const updated = await prisma.product.update({

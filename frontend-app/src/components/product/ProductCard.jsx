@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { addToCart } from "../../api/cartApi";
 import { useCart } from "../../context/CartContext";
+import { useCompare } from "../../context/CompareContext";
 
 function ProductCard({
   product,
@@ -9,10 +10,13 @@ function ProductCard({
   showActions = true,
   isWishlisted,
   onToggleWishlist,
+  showCompare = false,
 }) {
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState("");
   const { refreshCart } = useCart();
+  const { toggleCompare, isComparing, isFull } = useCompare();
+  const comparing = isComparing(product._id);
 
   const role = JSON.parse(localStorage.getItem("user") || "{}")?.role;
 
@@ -157,6 +161,28 @@ function ProductCard({
               </span>
             )}
           </>
+        )}
+
+        {showCompare && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "13px",
+              color: comparing || !isFull ? "#333" : "#aaa",
+              cursor: !comparing && isFull ? "not-allowed" : "pointer",
+            }}
+            title={!comparing && isFull ? "You can compare up to 4 products at a time" : ""}
+          >
+            <input
+              type="checkbox"
+              checked={comparing}
+              disabled={!comparing && isFull}
+              onChange={() => toggleCompare(product._id)}
+            />
+            Compare
+          </label>
         )}
 
         {onToggleWishlist && (

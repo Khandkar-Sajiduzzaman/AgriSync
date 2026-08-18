@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import NutritionFields from "./NutritionFields"
 
 function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" }) {
   const [form, setForm] = useState({
@@ -13,6 +14,8 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
     stock: initialData.stock || "",
   })
   const [image, setImage] = useState(null)
+  // nutritionInfo comes back from the API already parsed into an object (see shapeProduct)
+  const [nutrition, setNutrition] = useState(initialData.nutritionInfo || {})
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -24,7 +27,7 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
       alert("Image must be smaller than 2MB")
       return
     }
-    onSubmit(form, image)
+    onSubmit({ ...form, nutritionInfo: nutrition }, image)
   }
 
   return (
@@ -92,6 +95,8 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
           />
         </div>
       </div>
+
+      <NutritionFields value={nutrition} onChange={setNutrition} />
 
       <div className="space-y-2">
         <Label htmlFor="image">Product Image</Label>

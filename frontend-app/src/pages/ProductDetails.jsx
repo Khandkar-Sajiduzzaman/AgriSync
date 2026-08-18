@@ -5,6 +5,17 @@ import { getWishlist, toggleWishlist, getFollowedFarmers, toggleFollowFarmer } f
 import { getProductReviews, canReviewProduct } from "../api/reviewApi";
 import ReviewForm from "../components/product/ReviewForm";
 import ReviewsList from "../components/product/ReviewsList";
+import { useCompare } from "../context/CompareContext";
+
+const NUTRITION_LABELS = {
+  calories: "Calories (kcal / 100g)",
+  protein: "Protein (g)",
+  carbs: "Carbohydrates (g)",
+  fat: "Fat (g)",
+  fiber: "Fiber (g)",
+  vitamins: "Vitamins / Minerals",
+  note: "Notes",
+};
 
 function ProductDetails() {
   const { id } = useParams();
@@ -19,6 +30,7 @@ function ProductDetails() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
   const role = JSON.parse(localStorage.getItem("user"))?.role;
+  const { toggleCompare, isComparing, isFull } = useCompare();
 
   useEffect(() => {
     loadData();
@@ -195,8 +207,51 @@ function ProductDetails() {
             </div>
           )}
 
+          {product.nutritionInfo &&
+            Object.entries(product.nutritionInfo).some(([, v]) => v) && (
+              <div
+                style={{
+                  marginTop: 8,
+                  marginBottom: 16,
+                  padding: "14px",
+                  borderRadius: 8,
+                  background: "#f9fafb",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <p style={{ margin: "0 0 8px 0", fontWeight: 700, fontSize: "14px", color: "#374151" }}>
+                  Nutritional Information
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", fontSize: "13px", color: "#4b5563" }}>
+                  {Object.entries(product.nutritionInfo)
+                    .filter(([, value]) => value !== "" && value !== null && value !== undefined)
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <strong>{NUTRITION_LABELS[key] || key}:</strong> {value}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
           {role === "buyer" && (
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                onClick={() => toggleCompare(product._id)}
+                disabled={!isComparing(product._id) && isFull}
+                title={!isComparing(product._id) && isFull ? "You can compare up to 4 products at a time" : ""}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "8px",
+                  border: "1px solid #d1d5db",
+                  background: isComparing(product._id) ? "#e8f5e9" : "#fff",
+                  color: isComparing(product._id) ? "#1b5e20" : "#374151",
+                  cursor: !isComparing(product._id) && isFull ? "not-allowed" : "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                {isComparing(product._id) ? "✓ Added to Compare" : "+ Add to Compare"}
+              </button>
               <button
                 onClick={handleToggleWishlist}
                 style={{
