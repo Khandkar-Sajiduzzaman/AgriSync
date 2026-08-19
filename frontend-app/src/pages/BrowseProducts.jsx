@@ -12,6 +12,7 @@ function BrowseProducts() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [farmer, setFarmer] = useState("");
+  const [sortBy, setSortBy] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [wishlistIds, setWishlistIds] = useState([]);
@@ -56,7 +57,7 @@ function BrowseProducts() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    fetchProducts({ search, category, minPrice, maxPrice, farmer, page: 1 });
+    fetchProducts({ search, category, minPrice, maxPrice, farmer, page: 1, sortBy });
   };
 
   const handleReset = () => {
@@ -65,6 +66,7 @@ function BrowseProducts() {
     setMinPrice("");
     setMaxPrice("");
     setFarmer("");
+    setSortBy("");
     fetchProducts({ page: 1 });
   };
 
@@ -231,6 +233,33 @@ function BrowseProducts() {
                 onChange={(e) => setFarmer(e.target.value)}
                 style={inputStyle}
               />
+            </div>
+
+            {/* SORT BY DROPDOWN — MUST BE INSIDE THE GRID */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#333333",
+                  marginBottom: "6px",
+                }}
+              >
+                Sort By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Newest First</option>
+                <option value="rating_high">Highest Rated</option>
+                <option value="rating_low">Lowest Rated</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+                <option value="name_asc">Name: A to Z</option>
+              </select>
             </div>
           </div>
 

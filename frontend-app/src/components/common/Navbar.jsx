@@ -13,6 +13,7 @@ import {
   FaCommentDots,
   FaTruck,
   FaBalanceScale,
+  FaFlag,
 } from "react-icons/fa";
 
 import "../../styles/navbar.css";
@@ -141,9 +142,15 @@ function Navbar({ onLogout }) {
         )}
 
         {role === "admin" && (
-          <Link className={active("/inventory-management")} to="/inventory-management">
-            <FaBoxOpen /> Inventory
-          </Link>
+          <>
+            <Link className={active("/inventory-management")} to="/inventory-management">
+              <FaBoxOpen /> Inventory
+            </Link>
+
+            <Link className={active("/review-moderation")} to="/review-moderation">
+              <FaFlag /> Review Moderation
+            </Link>
+          </>
         )}
 
         <button

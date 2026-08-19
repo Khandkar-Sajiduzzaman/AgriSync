@@ -44,6 +44,7 @@ enum Role {
   admin
 }
 
+
 enum AccountStatus {
   active
   suspended
@@ -117,6 +118,11 @@ enum UnitType {
   dozen
   bag
   box
+}
+enum ModerationStatus {
+  pending
+  approved
+  rejected
 }
 
 // =============================================================================
@@ -594,11 +600,10 @@ model DeliveryZone {
 }
 
 // =============================================================================
-// REVIEW & RATING (Sprint 3)
+// REVIEW & RATING (Sprint 3) — ENHANCED with Fraud Detection
 // =============================================================================
 // Buyers can only review products they have ordered (verified purchase).
-// Includes fraud detection fields.
-// Matches class diagram: Review with rating, comment, date.
+// Includes fraud detection fields and admin moderation support.
 // =============================================================================
 
 model Review {
@@ -619,6 +624,13 @@ model Review {
   isVerifiedPurchase Boolean @default(false)
   isFlagged          Boolean @default(false)
   fraudScore         Float?
+  fraudReasons       String[] // Array of reason codes: ["extreme_rating", "short_comment", "duplicate_content", "rapid_reviews", "bot_pattern"]
+
+  // --- Admin moderation ---
+  moderationStatus   ModerationStatus @default(pending) // pending, approved, rejected
+  moderatedById      String?
+  moderatedAt        DateTime?
+  moderationNote     String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -627,8 +639,12 @@ model Review {
   @@index([authorId])
   @@index([orderId])
   @@index([createdAt])
-  @@unique([authorId, productId, orderId])  // <-- ADD THIS LINE (NEW!)
+  @@index([isFlagged])
+  @@index([moderationStatus])
+  @@unique([authorId, productId, orderId])
 }
+
+
 
 // =============================================================================
 // NEGOTIATION (Sprint 3 — Buyer offers a price, Farmer responds)
