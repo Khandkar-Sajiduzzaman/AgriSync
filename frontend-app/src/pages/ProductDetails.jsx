@@ -196,7 +196,34 @@ function ProductDetails() {
             <p style={{ margin: 0 }}><strong>Stock:</strong> {product.stock} {product.unit}</p>
             <p style={{ margin: 0 }}><strong>Farmer:</strong> {product.farmer?.name}</p>
           </div>
- 
+
+          {/* ===== TRACEABILITY DISPLAY ===== */}
+          {(product.origin || product.originDetails) && (
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "14px",
+                borderRadius: "8px",
+                background: "#fffbeb",
+                border: "1px solid #fcd34d",
+              }}
+            >
+              <p style={{ margin: "0 0 8px 0", fontWeight: 700, fontSize: "14px", color: "#92400e" }}>
+                Product Traceability
+              </p>
+              {product.origin && (
+                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#78350f" }}>
+                  <strong>Origin:</strong> {product.origin}
+                </p>
+              )}
+              {product.originDetails && (
+                <p style={{ margin: 0, fontSize: "13px", color: "#78350f", lineHeight: 1.5 }}>
+                  <strong>Production Details:</strong> {product.originDetails}
+                </p>
+              )}
+            </div>
+          )}
+          {/* ===== END TRACEABILITY DISPLAY ===== */}
           {product.deliveryAvailability && (
             <div style={{ marginTop: 8, padding: '10px', borderRadius: 8, background: product.deliveryAvailability.delivers ? '#ecfdf5' : '#fff1f2', color: product.deliveryAvailability.delivers ? '#065f46' : '#991b1b' }}>
               {product.deliveryAvailability.delivers ? (

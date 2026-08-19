@@ -51,7 +51,7 @@ const shapeProduct = (product) => ({
 const createProduct = async (req, res) => {
   try {
     // SECURITY & BUG FIX: Destructure FIRST, then validate
-    const { name, description, category, price, stock, nutritionInfo } = req.body;
+    const { name, description, category, price, stock, nutritionInfo, origin, originDetails } = req.body;
 
     if (!name || name.trim().length < 2 || name.trim().length > 200) {
       return res.status(400).json({ message: 'Name must be 2-200 characters' });
@@ -84,6 +84,9 @@ const createProduct = async (req, res) => {
         price: productPrice,
         stock: productStock,
         nutritionInfo: serializeNutritionInfo(nutritionInfo),
+        // ===== TRACEABILITY: Store origin and production details =====
+        origin: origin ? origin.trim() : null,
+        originDetails: originDetails ? originDetails.trim() : null,
         images: [],
       },
       include: { farmer: { select: { id: true, name: true } } }, // SECURITY: no email/phone
@@ -199,7 +202,7 @@ const updateProduct = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    const { name, description, category, price, stock, nutritionInfo } = req.body;
+    const { name, description, category, price, stock, nutritionInfo, origin, originDetails } = req.body;
     const data = {};
 
     if (name !== undefined) {
@@ -227,6 +230,9 @@ const updateProduct = async (req, res) => {
     if (nutritionInfo !== undefined) {
       data.nutritionInfo = serializeNutritionInfo(nutritionInfo);
     }
+    // ===== TRACEABILITY: Allow updating origin and production details =====
+    if (origin !== undefined) data.origin = origin.trim() || null;
+    if (originDetails !== undefined) data.originDetails = originDetails.trim() || null;
 
     const updated = await prisma.product.update({
       where: { id: req.params.id },
@@ -346,7 +352,7 @@ const getRecommendations = async (req, res) => {
           take: 8,
         });
 
-        recommended.push(...catProducts);
+      
       }
     }
 

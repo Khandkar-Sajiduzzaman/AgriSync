@@ -12,6 +12,9 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
     category: initialData.category || "",
     price: initialData.price || "",
     stock: initialData.stock || "",
+    // ===== TRACEABILITY: Initialize origin fields from existing data =====
+    origin: initialData.origin || "",
+    originDetails: initialData.originDetails || "",
   })
   const [image, setImage] = useState(null)
   // nutritionInfo comes back from the API already parsed into an object (see shapeProduct)
@@ -27,6 +30,7 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
       alert("Image must be smaller than 2MB")
       return
     }
+    // ===== TRACEABILITY: Include origin and originDetails in the submitted data =====
     onSubmit({ ...form, nutritionInfo: nutrition }, image)
   }
 
@@ -95,6 +99,40 @@ function ProductForm({ onSubmit, initialData = {}, buttonText = "Add Product" })
           />
         </div>
       </div>
+
+      {/* ===== TRACEABILITY SECTION ===== */}
+      <div className="space-y-3 border rounded-lg p-4 bg-amber-50/50 border-amber-200">
+        <Label className="text-sm font-semibold text-amber-900">
+          Product Traceability (optional)
+        </Label>
+        <p className="text-xs text-amber-700">
+          Help buyers trust your product by sharing where it comes from and how it was produced.
+        </p>
+
+        <div className="space-y-2">
+          <Label htmlFor="origin" className="text-xs">Origin / Source Location</Label>
+          <Input
+            id="origin"
+            name="origin"
+            placeholder="e.g. Rajshahi, Bangladesh"
+            value={form.origin}
+            onChange={handleChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="originDetails" className="text-xs">Production Details</Label>
+          <Textarea
+            id="originDetails"
+            name="originDetails"
+            placeholder="e.g. Harvested on August 15, 2026. Grown using organic compost. No chemical pesticides used."
+            value={form.originDetails}
+            onChange={handleChange}
+            rows={3}
+          />
+        </div>
+      </div>
+      {/* ===== END TRACEABILITY SECTION ===== */}
 
       <NutritionFields value={nutrition} onChange={setNutrition} />
 

@@ -235,51 +235,35 @@ const toggleWishlist = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // BULLETPROOF TOGGLE
-    try {
-      await prisma.wishlist.delete({
-        where: { userId_productId: { userId, productId } },
-      });
+    // ROBUST TOGGLE: deleteMany never throws — returns count of deleted rows
+    const deleted = await prisma.wishlist.deleteMany({
+      where: { userId, productId },
+    });
+
+    if (deleted.count > 0) {
       return res.json({ success: true, action: 'removed' });
-    } catch (deleteErr) {
-      if (deleteErr.code === 'P2025') {
-        // Record didn't exist, try to create it
-        try {
-          await prisma.wishlist.create({ data: { userId, productId } });
-
-          // Check if a wishlist message was already sent for this exact product to avoid spam
-          const existingMsg = await prisma.message.findFirst({
-            where: { senderId: userId, receiverId: product.farmerId, productId }
-          });
-
-          if (!existingMsg && userId !== product.farmerId) {
-            await prisma.message.create({
-              data: {
-                senderId: userId,
-                receiverId: product.farmerId,
-                content: `Hello! I just added your product "${product.name}" to my wishlist.`,
-                productId: productId,
-              }
-            });
-          }
-
-          return res.json({ success: true, action: 'added' });
-        } catch (createErr) {
-          if (createErr.code === 'P2002') {
-            try {
-              await prisma.wishlist.delete({
-                where: { userId_productId: { userId, productId } },
-              });
-              return res.json({ success: true, action: 'removed' });
-            } catch {
-              return res.json({ success: true, action: 'added' });
-            }
-          }
-          throw createErr;
-        }
-      }
-      throw deleteErr;
     }
+
+    // Record didn't exist — create it
+    await prisma.wishlist.create({ data: { userId, productId } });
+
+    // Send a wishlist notification message to the farmer (only once per product)
+    const existingMsg = await prisma.message.findFirst({
+      where: { senderId: userId, receiverId: product.farmerId, productId }
+    });
+
+    if (!existingMsg && userId !== product.farmerId) {
+      await prisma.message.create({
+        data: {
+          senderId: userId,
+          receiverId: product.farmerId,
+          content: `Hello! I just added your product "${product.name}" to my wishlist.`,
+          productId: productId,
+        }
+      });
+    }
+
+    return res.json({ success: true, action: 'added' });
   } catch (error) {
     console.error('Toggle wishlist error:', error);
     res.status(500).json({ message: 'Something went wrong' });
@@ -321,33 +305,18 @@ const toggleFollowFarmer = async (req, res) => {
       return res.status(404).json({ message: 'Farmer not found' });
     }
 
-    // BULLETPROOF TOGGLE (same pattern as wishlist)
-    try {
-      await prisma.follow.delete({
-        where: { followerId_followingId: { followerId, followingId: farmerId } },
-      });
+    // ROBUST TOGGLE: deleteMany never throws — returns count of deleted rows
+    const deleted = await prisma.follow.deleteMany({
+      where: { followerId, followingId: farmerId },
+    });
+
+    if (deleted.count > 0) {
       return res.json({ success: true, action: 'unfollowed' });
-    } catch (deleteErr) {
-      if (deleteErr.code === 'P2025') {
-        try {
-          await prisma.follow.create({ data: { followerId, followingId: farmerId } });
-          return res.json({ success: true, action: 'followed' });
-        } catch (createErr) {
-          if (createErr.code === 'P2002') {
-            try {
-              await prisma.follow.delete({
-                where: { followerId_followingId: { followerId, followingId: farmerId } },
-              });
-              return res.json({ success: true, action: 'unfollowed' });
-            } catch {
-              return res.json({ success: true, action: 'followed' });
-            }
-          }
-          throw createErr;
-        }
-      }
-      throw deleteErr;
     }
+
+    // Record didn't exist — create it
+    await prisma.follow.create({ data: { followerId, followingId: farmerId } });
+    return res.json({ success: true, action: 'followed' });
   } catch (error) {
     console.error('Toggle follow error:', error);
     res.status(500).json({ message: 'Something went wrong' });
