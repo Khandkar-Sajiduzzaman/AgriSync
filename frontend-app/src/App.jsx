@@ -13,7 +13,7 @@ import ProductDetails from "./pages/ProductDetails";
 import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
 import ComparePage from "./pages/ComparePage";
-
+import ReviewModeration from "./pages/ReviewModeration";
 // NEW PAGES for Place Order feature
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -75,7 +75,11 @@ function App() {
           path="/compare"
           element={role === "buyer" ? <ComparePage /> : <Navigate to="/" replace />}
         />
-
+        {/* Admin: Review Moderation */}
+        <Route
+          path="/review-moderation"
+          element={role === "admin" ? <ReviewModeration /> : <Navigate to="/" replace />}
+        />
         {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />
 

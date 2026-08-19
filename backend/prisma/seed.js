@@ -165,6 +165,12 @@ const REVIEW_COMMENTS = [
   "A bit smaller than expected but very sweet.",
 ];
 
+// NEW: Fraud detection test comment pools
+const FRAUD_SHORT_COMMENTS = ["ok", "nice", "good", "bad", "fine", "ok ok"];
+const FRAUD_GENERIC_COMMENTS = ["good product", "nice product", "very good", "best product", "great product"];
+const FRAUD_NEGATIVE_WORDS = ["terrible", "worst", "bad", "hate", "awful", "poor", "disappointing"];
+const FRAUD_POSITIVE_WORDS = ["excellent", "amazing", "love", "perfect", "best", "great", "fantastic"];
+
 const ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "out_for_delivery", "delivered", "cancelled"];
 const PAYMENT_METHODS = ["cash_on_delivery", "online_transfer", "mobile_banking", "card"];
 const NEGOTIATION_STATUSES = ["pending", "accepted", "rejected", "countered", "expired"];
@@ -472,7 +478,7 @@ async function main() {
     const dm = pick(deliveryMen);
     const status = pick(ORDER_STATUSES);
     const orderProducts = [];
-    let totalAmount = 0;
+    let itemsSubtotal = 0;
 
     // Each order has 1-4 items
     const itemCount = randInt(1, 4);
@@ -485,11 +491,13 @@ async function main() {
       const qty = randInt(1, 10);
       const unitPrice = product.price;
       const itemTotal = parseFloat((unitPrice * qty).toFixed(2));
-      totalAmount += itemTotal;
+      itemsSubtotal += itemTotal;
       orderProducts.push({ product, qty, unitPrice, itemTotal });
     }
+
     const deliveryFee = randInt(20, 100);
-    const subtotal = parseFloat(totalAmount.toFixed(2));
+    const subtotal = parseFloat(itemsSubtotal.toFixed(2));
+
     const order = await prisma.order.create({
       data: {
         orderNumber: `AGR-2026${String(randInt(1, 12)).padStart(2, "0")}${String(randInt(1, 28)).padStart(2, "0")}-${String(i + 1).padStart(4, "0")}`,
@@ -498,11 +506,9 @@ async function main() {
         status,
         paymentStatus: status === "delivered" ? "paid" : pick(["pending", "paid", "paid"]),
         paymentMethod: pick(PAYMENT_METHODS),
-        totalAmount: parseFloat(totalAmount.toFixed(2)),
-        deliveryFee: randInt(20, 100),
         subtotal,
-        totalAmount: subtotal + deliveryFee,
         deliveryFee,
+        totalAmount: subtotal + deliveryFee,
         deliveryAddress: `${randInt(1, 200)} ${pick(["Road", "Street", "Lane"])} ${randInt(1, 20)}, ${buyer.district}, ${buyer.division}`,
         deliveryNotes: pick(["Call before delivery", "Leave at gate", "Ring doorbell", "Contact via phone", ""]),
         deliveryManId: status !== "pending" && status !== "cancelled" ? dm.id : null,
@@ -544,27 +550,154 @@ async function main() {
   console.log("✅ 40 Orders created with tracking data");
 
   // ========================================================================
-  // 12. REVIEWS (80)
+  // 12. REVIEWS (80+) — ENHANCED with Fraud Detection Test Data
   // ========================================================================
   let reviewCount = 0;
+  let normalCount = 0;
+  let flaggedPendingCount = 0;
+  let flaggedApprovedCount = 0;
+  let flaggedRejectedCount = 0;
+
+  // Track buyer comments for duplicate content simulation
+  const buyerComments = new Map(); // buyerId -> Set of comments
+
   for (const order of orders) {
     if (order.status !== "delivered") continue;
 
     const orderItems = await prisma.orderItem.findMany({ where: { orderId: order.id } });
     for (const item of orderItems) {
-      if (Math.random() > 0.6) continue; // Not every item gets reviewed
+      if (Math.random() > 0.55) continue; // ~45% review rate
 
-      const rating = randInt(3, 5);
+      const buyerId = order.buyerId;
+      const rand = Math.random();
+      let reviewType = "normal";
+
+      // Distribution: 70% normal, 18% flagged pending, 8% flagged approved, 4% flagged rejected
+      if (rand > 0.96) reviewType = "flagged_rejected";
+      else if (rand > 0.88) reviewType = "flagged_approved";
+      else if (rand > 0.70) reviewType = "flagged_pending";
+
+      let rating, comment, fraudScore, fraudReasons, isFlagged, moderationStatus;
+      let moderatedById = null;
+      let moderatedAt = null;
+      let moderationNote = null;
+
+      if (reviewType === "normal") {
+        // Normal review: 2-5 stars, decent comment, no fraud
+        rating = randInt(2, 5);
+        comment = pick(REVIEW_COMMENTS);
+        fraudScore = parseFloat((Math.random() * 0.25).toFixed(2));
+        fraudReasons = [];
+        isFlagged = false;
+        moderationStatus = "approved";
+        normalCount++;
+
+      } else if (reviewType === "flagged_pending") {
+        // Flagged, waiting for admin moderation
+        isFlagged = true;
+        moderationStatus = "pending";
+        const fraudType = randInt(1, 6);
+
+        if (fraudType === 1) {
+          // Extreme rating (1 or 5) + short comment
+          rating = Math.random() > 0.5 ? 1 : 5;
+          comment = pick(FRAUD_SHORT_COMMENTS);
+          fraudScore = parseFloat((0.65 + Math.random() * 0.15).toFixed(2));
+          fraudReasons = ["extreme_rating", "short_comment"];
+        } else if (fraudType === 2) {
+          // Missing comment
+          rating = randInt(1, 5);
+          comment = null;
+          fraudScore = parseFloat((0.60 + Math.random() * 0.15).toFixed(2));
+          fraudReasons = ["missing_comment"];
+        } else if (fraudType === 3) {
+          // Generic/bot-like comment
+          rating = 5;
+          comment = pick(FRAUD_GENERIC_COMMENTS);
+          fraudScore = parseFloat((0.60 + Math.random() * 0.20).toFixed(2));
+          fraudReasons = ["extreme_rating", "generic_comment"];
+        } else if (fraudType === 4) {
+          // Rating-comment mismatch: 5-star with negative words
+          rating = 5;
+          comment = `Honestly ${pick(FRAUD_NEGATIVE_WORDS)} quality, very ${pick(FRAUD_NEGATIVE_WORDS)} experience`;
+          fraudScore = parseFloat((0.70 + Math.random() * 0.15).toFixed(2));
+          fraudReasons = ["rating_comment_mismatch"];
+        } else if (fraudType === 5) {
+          // Rating-comment mismatch: 1-star with positive words
+          rating = 1;
+          comment = `This is ${pick(FRAUD_POSITIVE_WORDS)}! I ${pick(FRAUD_POSITIVE_WORDS)} it so much!`;
+          fraudScore = parseFloat((0.70 + Math.random() * 0.15).toFixed(2));
+          fraudReasons = ["extreme_rating", "rating_comment_mismatch"];
+        } else {
+          // Multiple issues: extreme + short + generic
+          rating = 1;
+          comment = "bad";
+          fraudScore = parseFloat((0.80 + Math.random() * 0.20).toFixed(2));
+          fraudReasons = ["extreme_rating", "short_comment", "generic_comment"];
+        }
+        flaggedPendingCount++;
+
+      } else if (reviewType === "flagged_approved") {
+        // Admin reviewed and approved the flagged review
+        isFlagged = false;
+        moderationStatus = "approved";
+        rating = 5;
+        comment = "Outstanding quality! Best purchase ever!";
+        fraudScore = parseFloat((0.55 + Math.random() * 0.10).toFixed(2));
+        fraudReasons = ["extreme_rating"];
+        moderatedById = admin1.id;
+        moderatedAt = randDate(5);
+        moderationNote = "Verified genuine review after manual check";
+        flaggedApprovedCount++;
+
+      } else if (reviewType === "flagged_rejected") {
+        // Admin reviewed and rejected the flagged review
+        isFlagged = true;
+        moderationStatus = "rejected";
+        rating = 1;
+        comment = "bad";
+        fraudScore = parseFloat((0.85 + Math.random() * 0.15).toFixed(2));
+        fraudReasons = ["extreme_rating", "short_comment", "missing_comment"];
+        moderatedById = admin2.id;
+        moderatedAt = randDate(5);
+        moderationNote = "Confirmed spam / fake review";
+        flaggedRejectedCount++;
+      }
+
+      // Simulate duplicate content for some buyers
+      if (Math.random() > 0.85 && comment) {
+        const prevComments = buyerComments.get(buyerId) || new Set();
+        if (prevComments.has(comment.toLowerCase().trim())) {
+          fraudReasons.push("duplicate_content");
+          fraudScore = Math.min(parseFloat((fraudScore + 0.35).toFixed(2)), 1.0);
+          if (fraudScore >= 0.60 && moderationStatus === "approved") {
+            isFlagged = true;
+            moderationStatus = "pending";
+            moderatedById = null;
+            moderatedAt = null;
+            moderationNote = null;
+          }
+        } else {
+          prevComments.add(comment.toLowerCase().trim());
+          buyerComments.set(buyerId, prevComments);
+        }
+      }
+
       await prisma.review.create({
         data: {
           rating,
-          comment: pick(REVIEW_COMMENTS),
-          authorId: order.buyerId,
+          comment,
+          authorId: buyerId,
           productId: item.productId,
           orderId: order.id,
           isVerifiedPurchase: true,
-          isFlagged: Math.random() > 0.95,
-          fraudScore: Math.random() > 0.9 ? Math.random() * 0.3 : null,
+          isFlagged,
+          fraudScore,
+          fraudReasons,
+          moderationStatus,
+          moderatedById,
+          moderatedAt,
+          moderationNote,
           createdAt: randDate(15),
         },
       });
@@ -572,7 +705,7 @@ async function main() {
     }
   }
 
-  console.log(`✅ ${reviewCount} Reviews created`);
+  console.log(`✅ ${reviewCount} Reviews created (${normalCount} normal, ${flaggedPendingCount} flagged pending, ${flaggedApprovedCount} flagged approved, ${flaggedRejectedCount} flagged rejected)`);
 
   // ========================================================================
   // 13. PRODUCT VOTES (150)

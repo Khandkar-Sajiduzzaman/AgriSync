@@ -98,7 +98,7 @@ const createProduct = async (req, res) => {
 
 const getProducts = async (req, res) => {
   try {
-    const { search, category, minPrice, maxPrice, page, limit, farmer } = req.query;
+    const { search, category, minPrice, maxPrice, page, limit, farmer, sortBy } = req.query;
     const where = {};
 
     if (search) {
@@ -115,19 +115,38 @@ const getProducts = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
+    // Only show available, approved, non-removed products
+    where.isAvailable = true;
+    where.isRemoved = false;
+    where.isApproved = true;
+
     const currentPage = Math.max(1, parseInt(page) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit) || 12)); // SECURITY: Cap max page size
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit) || 12));
     const skip = (currentPage - 1) * pageSize;
+
+    // Sorting logic
+    let orderBy = { createdAt: 'desc' }; // default: newest first
+    if (sortBy === 'rating_high') {
+      orderBy = { averageRating: 'desc' };
+    } else if (sortBy === 'rating_low') {
+      orderBy = { averageRating: 'asc' };
+    } else if (sortBy === 'price_low') {
+      orderBy = { price: 'asc' };
+    } else if (sortBy === 'price_high') {
+      orderBy = { price: 'desc' };
+    } else if (sortBy === 'name_asc') {
+      orderBy = { name: 'asc' };
+    }
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
         include: {
           farmer: {
-            select: { id: true, name: true } // SECURITY: Removed email, phone, address
+            select: { id: true, name: true }
           }
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: pageSize,
       }),

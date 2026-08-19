@@ -34,7 +34,7 @@ export const getCategories = async () => {
   return data;
 };
 
-// Get All Products (paginated + filtered)
+// Get All Products (paginated + filtered + sorted)
 export const getProducts = async (filters = {}) => {
   const params = new URLSearchParams();
 
@@ -44,6 +44,7 @@ export const getProducts = async (filters = {}) => {
   if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
   if (filters.farmer) params.append("farmer", filters.farmer);
   if (filters.page) params.append("page", filters.page);
+  if (filters.sortBy) params.append("sortBy", filters.sortBy);
 
   const query = params.toString();
   const response = await fetch(query ? `${API_URL}?${query}` : API_URL);
