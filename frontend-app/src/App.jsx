@@ -20,6 +20,10 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 
+
+// Negotiations page
+import NegotiationsPage from "./pages/NegotiationsPage";
+
 //Chat
 import ChatPage from "./pages/ChatPage";
 
@@ -135,6 +139,11 @@ function App() {
         <Route
           path="/orders/:id"
           element={role === "buyer" || role === "farmer" ? <OrderDetailPage /> : <Navigate to="/delivery" replace />}
+        />
+        {/* Negotiations (Buyer + Farmer only) */}
+        <Route
+          path="/negotiations"
+          element={role === "buyer" || role === "farmer" ? <NegotiationsPage /> : <Navigate to="/" replace />}
         />
         {/* Delivery Man Dashboard */}
         <Route
