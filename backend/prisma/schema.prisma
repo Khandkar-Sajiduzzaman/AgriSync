@@ -109,6 +109,12 @@ enum InventoryRequestStatus {
   REJECTED
 }
 
+enum PromotionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum UnitType {
   kg
   gram
@@ -168,6 +174,8 @@ model User {
   // --- Relations: Inventory change requests ---
   inventoryRequests        InventoryChangeRequest[] @relation("InventoryRequestFarmer")
   reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")
+  promotionRequests        Promotion[] @relation("PromotionFarmer")
+  reviewedPromotions       Promotion[] @relation("PromotionReviewer")
 
   // --- Relations: Wishlist & Follow ---
   wishlist      Wishlist[]
@@ -368,6 +376,7 @@ model Product {
   inventoryLogs   InventoryLog[]
   inventoryChangeRequests InventoryChangeRequest[]
   promotions      ProductPromotion[]
+  promotionRequests Promotion[]
   productViews    ProductView[]
   productVotes    ProductVote[]
 
@@ -811,6 +820,10 @@ model InventoryLog {
 
 model Promotion {
   id              String   @id @default(uuid())
+  farmerId        String?
+  farmer          User?    @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   title           String
   description     String?  @db.Text
   discountPercent Int?     // e.g., 10 for 10% off
@@ -820,11 +833,19 @@ model Promotion {
   startDate       DateTime
   endDate         DateTime
   isActive        Boolean  @default(true)
+  status          PromotionStatus @default(PENDING)
+  reviewedById    String?
+  reviewedBy      User?    @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  rejectionReason String?  @db.Text
 
   createdAt       DateTime @default(now())
 
   productPromotions ProductPromotion[]
 
+  @@index([farmerId])
+  @@index([productId])
+  @@index([status])
   @@index([isActive])
   @@index([startDate, endDate])
 }

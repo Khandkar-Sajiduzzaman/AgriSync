@@ -15,6 +15,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const comparisonRoutes = require('./routes/comparisonRoutes');
+const offerRoutes = require('./routes/offerRoutes');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/delivery-zones', deliveryZoneRoutes);
 app.use('/api/comparisons', comparisonRoutes);
+app.use('/api/offers', offerRoutes);
 
 // Health check — visit http://localhost:5000/ to confirm backend is alive
 app.get('/', (req, res) => {

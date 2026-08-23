@@ -29,6 +29,9 @@ import DeliveryZones from "./pages/DeliveryZones";
 import DeliveryZonesPublic from "./pages/DeliveryZonesPublic";
 import InventoryManagement from "./pages/InventoryManagement";
 import InventoryRequestPage from "./pages/InventoryRequestPage";
+import OfferRequestsPage from "./pages/OfferRequestsPage";
+import OfferModeration from "./pages/OfferModeration";
+import OfferNotificationsPage from "./pages/OfferNotificationsPage";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -99,6 +102,18 @@ function App() {
         <Route
           path="/inventory/requests"
           element={role === "farmer" ? <InventoryRequestPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/farmer/offers"
+          element={role === "farmer" ? <OfferRequestsPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/offer-moderation"
+          element={role === "admin" ? <OfferModeration /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/offers"
+          element={role === "buyer" ? <OfferNotificationsPage /> : <Navigate to="/" replace />}
         />
 
         {/* Edit Product */}

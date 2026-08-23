@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   FaLeaf,
@@ -14,11 +15,13 @@ import {
   FaTruck,
   FaBalanceScale,
   FaFlag,
+  FaBullhorn,
 } from "react-icons/fa";
 
 import "../../styles/navbar.css";
 import { useCart } from "../../context/CartContext";
 import { useCompare } from "../../context/CompareContext";
+import { getActiveOffers } from "../../api/offerApi";
 
 function Navbar({ onLogout }) {
   const location = useLocation();
@@ -26,6 +29,14 @@ function Navbar({ onLogout }) {
   const role = user?.role;
   const { cartCount } = useCart();
   const { compareIds } = useCompare();
+  const [activeOfferCount, setActiveOfferCount] = useState(0);
+
+  useEffect(() => {
+    if (role !== "buyer") return;
+    getActiveOffers()
+      .then((offers) => setActiveOfferCount(offers.length))
+      .catch(() => setActiveOfferCount(0));
+  }, [role, location.pathname]);
 
   const active = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";
@@ -63,6 +74,10 @@ function Navbar({ onLogout }) {
               <FaBoxOpen /> Inventory Requests
             </Link>
 
+            <Link className={active("/farmer/offers")} to="/farmer/offers">
+              <FaBullhorn /> Offer Requests
+            </Link>
+
             <Link className={active("/chat")} to="/chat">
               <FaCommentDots /> Messages
             </Link>
@@ -81,6 +96,27 @@ function Navbar({ onLogout }) {
 
             <Link className={active("/chat")} to="/chat">
              <FaCommentDots /> Messages
+            </Link>
+
+            <Link className={active("/offers")} to="/offers" style={{ position: "relative" }}>
+              <FaBullhorn /> Offers
+              {activeOfferCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-6px",
+                    right: "-10px",
+                    background: "#e74c3c",
+                    color: "white",
+                    borderRadius: "50%",
+                    padding: "2px 7px",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {activeOfferCount}
+                </span>
+              )}
             </Link>
 
             <Link className={active("/cart")} to="/cart" style={{ position: "relative" }}>
@@ -149,6 +185,10 @@ function Navbar({ onLogout }) {
 
             <Link className={active("/review-moderation")} to="/review-moderation">
               <FaFlag /> Review Moderation
+            </Link>
+
+            <Link className={active("/offer-moderation")} to="/offer-moderation">
+              <FaBullhorn /> Offer Moderation
             </Link>
           </>
         )}
