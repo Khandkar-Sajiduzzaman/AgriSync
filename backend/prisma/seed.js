@@ -1,8 +1,8 @@
 // =============================================================================
-// AgriSync — MASSIVE Database Seed Script
+// AgriSync — MASSIVE Database Seed Script (Updated for Delivery System v2)
 // =============================================================================
 // Generates 100+ users, 60+ products, 40+ orders, 80+ reviews,
-// 50+ messages, 30+ negotiations, and full supporting data.
+// 50+ messages, 30+ negotiations, delivery requests, and full supporting data.
 //
 // Reset before running: npx prisma db push --force-reset
 // Then run:            npm run db:seed
@@ -53,6 +53,10 @@ const DISTRICTS = {
   Rangpur: ["Rangpur", "Dinajpur", "Kurigram", "Lalmonirhat", "Nilphamari"],
   Mymensingh: ["Mymensingh", "Jamalpur", "Netrokona", "Sherpur"],
 };
+
+// NEW: City and area pools for delivery grouping
+const CITIES_FOR_DELIVERY = ["Dhaka", "Gazipur", "Narayanganj", "Rajshahi", "Khulna", "Chittagong", "Sylhet", "Barisal", "Rangpur", "Mymensingh"];
+const AREAS_FOR_DELIVERY = ["Dhanmondi", "Mirpur", "Uttara", "Gulshan", "Banani", "Mohammadpur", "Sadar", "Town", "City Center", "Old Town"];
 
 const FARMER_NAMES = [
   "Abdul Karim", "Hasina Begum", "Mohammad Ali", "Rina Akter", "Shafiqul Islam",
@@ -171,12 +175,29 @@ const FRAUD_GENERIC_COMMENTS = ["good product", "nice product", "very good", "be
 const FRAUD_NEGATIVE_WORDS = ["terrible", "worst", "bad", "hate", "awful", "poor", "disappointing"];
 const FRAUD_POSITIVE_WORDS = ["excellent", "amazing", "love", "perfect", "best", "great", "fantastic"];
 
-const ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "out_for_delivery", "delivered", "cancelled"];
+// NEW: Added awaiting_delivery to the status flow
+const ORDER_STATUSES = ["pending", "confirmed", "processing", "awaiting_delivery", "shipped", "out_for_delivery", "delivered", "cancelled"];
 const PAYMENT_METHODS = ["cash_on_delivery", "online_transfer", "mobile_banking", "card"];
 const NEGOTIATION_STATUSES = ["pending", "accepted", "rejected", "countered", "expired"];
 const NOTIFICATION_TITLES = [
   "Order Update", "New Message", "Price Offer", "Follow Alert",
   "New Review", "Promotion Alert", "Stock Alert", "Delivery Update",
+];
+
+// NEW: Preferred area pools for delivery men
+const PREFERRED_AREA_POOLS = [
+  ["Dhaka"],
+  ["Gazipur", "Dhaka"],
+  ["Narayanganj", "Dhaka"],
+  ["Rajshahi"],
+  ["Khulna"],
+  ["Chittagong"],
+  ["Sylhet"],
+  ["Barisal"],
+  ["Rangpur"],
+  ["Mymensingh"],
+  ["Dhaka", "Gazipur", "Narayanganj"],
+  ["Rajshahi", "Natore"],
 ];
 
 // ---------------------------------------------------------------------------
@@ -281,7 +302,7 @@ async function main() {
   console.log("✅ 15 Buyers created");
 
   // ========================================================================
-  // 4. DELIVERY MEN (5)
+  // 4. DELIVERY MEN (5) — UPDATED with preferredAreas and maxOrders
   // ========================================================================
   const deliveryMen = [];
   for (let i = 0; i < 5; i++) {
@@ -298,6 +319,9 @@ async function main() {
             vehicleType: pick(["Motorcycle", "Van", "Truck", "Bicycle", "CNG"]),
             licenseNumber: `DHK-2026-${String(i + 1).padStart(3, "0")}`,
             isAvailable: Math.random() > 0.2,
+            // NEW: preferred delivery areas and max capacity
+            preferredAreas: pick(PREFERRED_AREA_POOLS),
+            maxOrders: randInt(2, 6),
           },
         },
       },
@@ -305,7 +329,7 @@ async function main() {
     deliveryMen.push(dm);
   }
 
-  console.log("✅ 5 Delivery Men created");
+  console.log("✅ 5 Delivery Men created (with preferences & capacity)");
 
   // ========================================================================
   // 5. CATEGORIES (8 main + 4 sub)
@@ -374,7 +398,7 @@ async function main() {
         categoryId: cat.id,
         legacyCategory: cat.name,
         origin: template.origin,
-        originDetails: template.originDetails, // Now uses the rich detailed data
+        originDetails: template.originDetails,
         nutritionInfo: pick(["Rich in vitamins and minerals.", "High fiber content.", "Good source of protein.", "Low calorie, nutrient dense.", "Contains essential amino acids."]),
         images: [`/uploads/${template.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}.jpg`],
         isAvailable: Math.random() > 0.1,
@@ -469,7 +493,7 @@ async function main() {
   console.log("✅ ~25 Cart items created");
 
   // ========================================================================
-  // 11. ORDERS (40)
+  // 11. ORDERS (40) — UPDATED with deliveryType, deliveryCity, deliveryArea
   // ========================================================================
   const orders = [];
   for (let i = 0; i < 40; i++) {
@@ -495,8 +519,21 @@ async function main() {
       orderProducts.push({ product, qty, unitPrice, itemTotal });
     }
 
-    const deliveryFee = randInt(20, 100);
+    // NEW: delivery type — 30% instant, 70% normal
+    const deliveryType = Math.random() > 0.7 ? "instant" : "normal";
+
+    // NEW: delivery city and area based on buyer's district or random
+    const deliveryCity = buyer.district || pick(CITIES_FOR_DELIVERY);
+    const deliveryArea = pick(AREAS_FOR_DELIVERY);
+
+    // NEW: delivery fee based on type (instant = 150, normal = 60)
+    const deliveryFee = deliveryType === "instant" ? 150 : 60;
     const subtotal = parseFloat(itemsSubtotal.toFixed(2));
+
+    // NEW: deliveryManId logic
+    // pending/cancelled/awaiting_delivery = no delivery man assigned yet
+    // shipped/out_for_delivery/delivered = has a delivery man
+    const hasDeliveryMan = !["pending", "cancelled", "awaiting_delivery"].includes(status);
 
     const order = await prisma.order.create({
       data: {
@@ -509,11 +546,16 @@ async function main() {
         subtotal,
         deliveryFee,
         totalAmount: subtotal + deliveryFee,
-        deliveryAddress: `${randInt(1, 200)} ${pick(["Road", "Street", "Lane"])} ${randInt(1, 20)}, ${buyer.district}, ${buyer.division}`,
+        deliveryAddress: `${randInt(1, 200)} ${pick(["Road", "Street", "Lane"])} ${randInt(1, 20)}, ${deliveryArea}, ${deliveryCity}`,
         deliveryNotes: pick(["Call before delivery", "Leave at gate", "Ring doorbell", "Contact via phone", ""]),
-        deliveryManId: status !== "pending" && status !== "cancelled" ? dm.id : null,
+        // NEW: delivery man only assigned if order has progressed past awaiting_delivery
+        deliveryManId: hasDeliveryMan ? dm.id : null,
         estimatedDelivery: status !== "pending" ? new Date(Date.now() + randInt(1, 5) * 86400000) : null,
         deliveredAt: status === "delivered" ? randDate(10) : null,
+        // NEW: delivery type and location fields
+        deliveryType,
+        deliveryCity,
+        deliveryArea,
         items: {
           create: orderProducts.map((op) => ({
             productId: op.product.id,
@@ -547,7 +589,87 @@ async function main() {
     }
   }
 
-  console.log("✅ 40 Orders created with tracking data");
+  console.log("✅ 40 Orders created with delivery types, cities, and tracking data");
+
+  // ========================================================================
+  // 11b. DELIVERY REQUESTS (NEW) — simulate the request-based flow
+  // ========================================================================
+  let deliveryRequestCount = 0;
+
+  for (const order of orders) {
+    // Only create delivery requests for orders that are NOT pending/cancelled
+    if (order.status === "pending" || order.status === "cancelled") continue;
+
+    const farmer = farmers.find((f) => f.id === order.farmerId);
+    const dm = pick(deliveryMen);
+
+    if (order.status === "awaiting_delivery") {
+      // Order is waiting for a delivery man — create a PENDING request
+      await prisma.deliveryRequest.create({
+        data: {
+          orderId: order.id,
+          deliveryManId: dm.id,
+          status: "pending",
+          requestType: order.deliveryType,
+          message: pick([
+            "Please collect by 3 PM",
+            "Products are ready for pickup",
+            "Urgent delivery needed",
+            "Can you deliver today?",
+            null,
+          ]),
+          createdAt: randDate(5),
+        },
+      });
+      deliveryRequestCount++;
+    } else if (["shipped", "out_for_delivery", "delivered"].includes(order.status)) {
+      // Order has a delivery man assigned — create an ACCEPTED request
+      await prisma.deliveryRequest.create({
+        data: {
+          orderId: order.id,
+          deliveryManId: order.deliveryManId || dm.id,
+          status: "accepted",
+          requestType: order.deliveryType,
+          message: null,
+          createdAt: randDate(7),
+          respondedAt: randDate(5),
+        },
+      });
+      deliveryRequestCount++;
+
+      // For instant deliveries, mark the delivery man as unavailable
+      // (since they are busy with that one order)
+      if (order.deliveryType === "instant" && order.deliveryManId) {
+        await prisma.deliveryManProfile.update({
+          where: { userId: order.deliveryManId },
+          data: { isAvailable: false },
+        });
+      }
+    }
+  }
+
+  // Create a few REJECTED delivery requests for realism
+  for (let i = 0; i < 3; i++) {
+    const awaitingOrders = orders.filter((o) => o.status === "awaiting_delivery");
+    if (awaitingOrders.length === 0) break;
+    const order = pick(awaitingOrders);
+    const dm = pick(deliveryMen);
+
+    await prisma.deliveryRequest.create({
+      data: {
+        orderId: order.id,
+        deliveryManId: dm.id,
+        status: "rejected",
+        requestType: order.deliveryType,
+        message: "Sorry, I am busy with another delivery",
+        createdAt: randDate(5),
+        respondedAt: randDate(3),
+      },
+    });
+    deliveryRequestCount++;
+  }
+
+  console.log(`✅ ${deliveryRequestCount} Delivery Requests created (pending, accepted, rejected)`);
 
   // ========================================================================
   // 12. REVIEWS (80+) — ENHANCED with Fraud Detection Test Data
@@ -1042,14 +1164,15 @@ async function main() {
   console.log("   • 2 Admins");
   console.log("   • 10 Farmers");
   console.log("   • 15 Buyers");
-  console.log("   • 5 Delivery Men");
+  console.log("   • 5 Delivery Men (with preferred areas & max capacity)");
   console.log("   • 12 Categories");
   console.log(`   • ${products.length} Products`);
   console.log("   • 20 Delivery Zones");
   console.log("   • ~40 Wishlist entries");
   console.log("   • ~30 Follow relationships");
   console.log("   • ~25 Cart items");
-  console.log("   • 40 Orders with tracking");
+  console.log(`   • 40 Orders (with deliveryType: instant/normal, city, area)`);
+  console.log(`   • ${deliveryRequestCount} Delivery Requests (pending/accepted/rejected)`);
   console.log(`   • ${reviewCount} Reviews`);
   console.log("   • ~150 Product votes");
   console.log("   • 25 Negotiations");
@@ -1071,16 +1194,19 @@ async function main() {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: generate status history for an order
+// Helper: generate status history for an order — UPDATED with awaiting_delivery
 // ---------------------------------------------------------------------------
 function generateStatusHistory(status, buyerId, farmerId, dmId) {
   const history = [{ status: "pending", notes: "Order placed by buyer", changedBy: buyerId }];
 
-  if (["confirmed", "processing", "shipped", "out_for_delivery", "delivered"].includes(status)) {
+  if (["confirmed", "processing", "awaiting_delivery", "shipped", "out_for_delivery", "delivered"].includes(status)) {
     history.push({ status: "confirmed", notes: "Farmer confirmed availability", changedBy: farmerId });
   }
-  if (["processing", "shipped", "out_for_delivery", "delivered"].includes(status)) {
+  if (["processing", "awaiting_delivery", "shipped", "out_for_delivery", "delivered"].includes(status)) {
     history.push({ status: "processing", notes: "Farmer is preparing the order", changedBy: farmerId });
+  }
+  if (["awaiting_delivery", "shipped", "out_for_delivery", "delivered"].includes(status)) {
+    history.push({ status: "awaiting_delivery", notes: "Delivery request sent, waiting for delivery man", changedBy: farmerId });
   }
   if (["shipped", "out_for_delivery", "delivered"].includes(status)) {
     history.push({ status: "shipped", notes: "Handed to delivery partner", changedBy: farmerId });

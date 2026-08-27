@@ -181,6 +181,9 @@ model User {
   // --- Relations: Delivery ---
   assignedDeliveries Order[] @relation("OrderDeliveryMan")
 
+    // NEW RELATION: delivery requests sent to this delivery man
+  deliveryRequests   DeliveryRequest[] @relation("DeliveryManRequests")
+
   // --- Relations: Chat ---
   messagesSent     Message[] @relation("MessageSender")
   messagesReceived Message[] @relation("MessageReceiver")
@@ -272,6 +275,9 @@ model DeliveryManProfile {
   currentLongitude Float?
   lastLocationUpdate DateTime?  //When was gps last Updated
   isAvailable      Boolean @default(true)
+  // NEW: area preferences and capacity
+  preferredAreas   String[]
+  maxOrders        Int     @default(3)
 }
 
 // =============================================================================
@@ -502,6 +508,11 @@ model Order {
   estimatedDelivery DateTime?
   deliveredAt       DateTime?
 
+  // NEW FIELDS FOR DELIVERY SYSTEM
+  deliveryType    DeliveryType  @default(normal)
+  deliveryCity    String?
+  deliveryArea    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -509,6 +520,7 @@ model Order {
   statusHistory   OrderStatusHistory[]
   reviews         Review[]
   trackingUpdates DeliveryTracking[]
+  deliveryRequests DeliveryRequest[]
 
   @@index([buyerId])
   @@index([farmerId])
@@ -957,4 +969,20 @@ model AdminActionLog {
   @@index([adminId])
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+model DeliveryRequest {
+  id              String                @id @default(uuid())
+  orderId         String
+  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryManId   String
+  deliveryMan     User                  @relation("DeliveryManRequests", fields: [deliveryManId], references: [id], onDelete: Cascade)
+  status          DeliveryRequestStatus @default(pending)
+  requestType     DeliveryType
+  message         String?
+  createdAt       DateTime              @default(now())
+  respondedAt     DateTime?
+
+  @@index([deliveryManId, status])
+  @@index([orderId])
 }

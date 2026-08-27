@@ -1,5 +1,9 @@
 const prisma = require('../config/db');
 
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
 // Helper: convert Decimal to plain number and add _id alias
 const shapeProduct = (product) => {
   if (!product) return product;
@@ -13,7 +17,7 @@ const shapeProduct = (product) => {
   };
 };
 
-// Helper: format order for response
+// Helper: format order for response (includes NEW delivery fields)
 const shapeOrder = (order) => {
   if (!order) return order;
   return {
@@ -31,6 +35,10 @@ const shapeOrder = (order) => {
     discountAmount: order.discountAmount?.toNumber
       ? order.discountAmount.toNumber()
       : order.discountAmount,
+    // NEW: delivery type and location fields
+    deliveryType: order.deliveryType,
+    deliveryCity: order.deliveryCity,
+    deliveryArea: order.deliveryArea,
     buyer: order.buyer ? { ...order.buyer, _id: order.buyer.id } : order.buyer,
     farmer: order.farmer
       ? { ...order.farmer, _id: order.farmer.id }
@@ -56,6 +64,20 @@ const shapeOrder = (order) => {
   };
 };
 
+// Helper: create a notification record
+const createNotification = async (tx, { userId, type, title, body, data }) => {
+  if (!userId) return null;
+  return tx.notification.create({
+    data: {
+      userId,
+      type,
+      title,
+      body,
+      data: data || {},
+    },
+  });
+};
+
 // Generate human-readable order number: AGR-20260809-XXXX
 const generateOrderNumber = () => {
   const now = new Date();
@@ -67,22 +89,23 @@ const generateOrderNumber = () => {
   return `AGR-${dateStr}-${random}`;
 };
 
+// =============================================================================
+// ORDER PLACEMENT
+// =============================================================================
+
 /**
  * POST /api/orders
  * Place an order from the cart.
  *
- * Flow:
- * 1. Get cart items
- * 2. Group by farmer (one order per farmer)
- * 3. For each farmer: verify stock, calculate totals, create order + items,
- *    deduct stock, log inventory, record status history
- * 4. Clear cart
+ * MODIFIED: Now accepts deliveryType, deliveryCity, deliveryArea.
+ * deliveryType can be "instant" (faster, costs more, 1 order per delivery man)
+ * or "normal" (cheaper, delivery man can carry multiple orders in same city).
  */
 const placeOrder = async (req, res) => {
   console.log('=== PLACE ORDER STARTED ===');
   console.log('User:', req.user);
   console.log('Body:', req.body);
-  
+
   try {
     if (req.user.role !== 'buyer') {
       console.log('REJECTED: Not a buyer');
@@ -94,14 +117,23 @@ const placeOrder = async (req, res) => {
       deliveryAddress,
       deliveryNotes,
       paymentMethod = 'cash_on_delivery',
-      deliveryFee = 0,
+      deliveryFee,
       discountAmount = 0,
+      // NEW: delivery type and location
+      deliveryType = 'normal',
+      deliveryCity,
+      deliveryArea,
     } = req.body;
 
     console.log('Step 1: Validating address...');
     if (!deliveryAddress || deliveryAddress.trim() === '') {
       console.log('REJECTED: Missing address');
       return res.status(400).json({ message: 'Delivery address is required' });
+    }
+
+    // NEW: Validate delivery type
+    if (!['instant', 'normal'].includes(deliveryType)) {
+      return res.status(400).json({ message: 'deliveryType must be "instant" or "normal"' });
     }
 
     console.log('Step 2: Fetching cart items...');
@@ -129,7 +161,7 @@ const placeOrder = async (req, res) => {
 
     const createdOrders = [];
 
-     for (const farmerId of Object.keys(itemsByFarmer)) {
+    for (const farmerId of Object.keys(itemsByFarmer)) {
       console.log('Step 4: Processing farmer:', farmerId);
       const items = itemsByFarmer[farmerId];
 
@@ -158,7 +190,11 @@ const placeOrder = async (req, res) => {
         subtotal += unitPrice * item.quantity;
       }
 
-      const dFee = parseFloat(deliveryFee) || 0;
+      // NEW: Calculate delivery fee based on type if not provided
+      let dFee = parseFloat(deliveryFee) || 0;
+      if (dFee === 0) {
+        dFee = deliveryType === 'instant' ? 150 : 60; // Instant costs more
+      }
       const disc = parseFloat(discountAmount) || 0;
       const totalAmount = subtotal + dFee - disc;
       console.log('Subtotal:', subtotal, 'DeliveryFee:', dFee, 'Discount:', disc, 'Total:', totalAmount);
@@ -176,10 +212,14 @@ const placeOrder = async (req, res) => {
             paymentMethod,
             subtotal,
             totalAmount,
-            deliveryFee: dFee === 0 ? 0 : dFee || null,
+            deliveryFee: dFee,
             discountAmount: disc === 0 ? 0 : disc || null,
             deliveryAddress,
             deliveryNotes: deliveryNotes || null,
+            // NEW fields
+            deliveryType,
+            deliveryCity: deliveryCity || null,
+            deliveryArea: deliveryArea || null,
           },
         });
         console.log('  TX: Order created:', order.id);
@@ -235,8 +275,7 @@ const placeOrder = async (req, res) => {
       });
       console.log('Step 4d: Transaction complete. Order ID:', newOrder.id);
 
-      // OPTIMIZED: Don't re-fetch the full order with heavy includes
-      // Just send the notification and build a lightweight response object
+      // Send message notification to farmer
       console.log('Step 4e: Sending notification...');
       if (buyerId !== farmerId) {
         await prisma.message.create({
@@ -264,6 +303,10 @@ const placeOrder = async (req, res) => {
         discountAmount: newOrder.discountAmount,
         deliveryAddress: newOrder.deliveryAddress,
         deliveryNotes: newOrder.deliveryNotes,
+        // NEW fields in response
+        deliveryType: newOrder.deliveryType,
+        deliveryCity: newOrder.deliveryCity,
+        deliveryArea: newOrder.deliveryArea,
         createdAt: newOrder.createdAt,
         updatedAt: newOrder.updatedAt,
         items: items.map(item => ({
@@ -309,6 +352,11 @@ const placeOrder = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// =============================================================================
+// GET ORDERS
+// =============================================================================
+
 /**
  * GET /api/orders
  * Get all orders for the logged-in user.
@@ -344,6 +392,10 @@ const getMyOrders = async (req, res) => {
           paymentMethod: true,
           totalAmount: true,
           createdAt: true,
+          // NEW: include delivery fields
+          deliveryType: true,
+          deliveryCity: true,
+          deliveryArea: true,
           buyer: { select: { id: true, name: true } },
           farmer: { select: { id: true, name: true } },
           items: {
@@ -370,6 +422,10 @@ const getMyOrders = async (req, res) => {
         paymentMethod: o.paymentMethod,
         totalAmount: o.totalAmount?.toNumber ? o.totalAmount.toNumber() : o.totalAmount,
         createdAt: o.createdAt,
+        // NEW fields
+        deliveryType: o.deliveryType,
+        deliveryCity: o.deliveryCity,
+        deliveryArea: o.deliveryArea,
         buyer: o.buyer ? { _id: o.buyer.id, name: o.buyer.name } : null,
         farmer: o.farmer ? { _id: o.farmer.id, name: o.farmer.name } : null,
         items: o.items.map((item) => ({
@@ -388,6 +444,7 @@ const getMyOrders = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch orders' });
   }
 };
+
 /**
  * GET /api/orders/:id
  * Get detailed information about a single order.
@@ -412,6 +469,7 @@ const getOrderById = async (req, res) => {
               select: {
                 currentLatitude: true,
                 currentLongitude: true,
+                vehicleType: true,
               },
             },
           },
@@ -422,6 +480,13 @@ const getOrderById = async (req, res) => {
           include: {
             author: { select: { id: true, name: true } },
           },
+        },
+        // NEW: include delivery requests so farmer can see pending requests
+        deliveryRequests: {
+          include: {
+            deliveryMan: { select: { id: true, name: true, phone: true } },
+          },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -446,9 +511,16 @@ const getOrderById = async (req, res) => {
   }
 };
 
+// =============================================================================
+// UPDATE ORDER STATUS
+// =============================================================================
+
 /**
  * PUT /api/orders/:id/status
  * Update the status of an order.
+ *
+ * MODIFIED: Added awaiting_delivery to flow, better validation,
+ * and automatic notifications on key status changes.
  */
 const updateOrderStatus = async (req, res) => {
   try {
@@ -456,22 +528,22 @@ const updateOrderStatus = async (req, res) => {
     console.log('Params:', req.params);
     console.log('Body:', req.body);
     console.log('User:', req.user);
-    // ... rest of function
+
     const { id } = req.params;
     const { status, notes } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
 
+    // NEW: added awaiting_delivery to valid statuses
     const validStatuses = [
-      'pending', 'confirmed', 'processing', 'shipped',
-      'out_for_delivery', 'delivered', 'cancelled', 'refunded',
+      'pending', 'confirmed', 'processing', 'awaiting_delivery',
+      'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'refunded',
     ];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status value' });
     }
 
-    // Fetch the order from database
     const existingOrder = await prisma.order.findUnique({
       where: { id },
       include: { items: { include: { product: true } } },
@@ -488,6 +560,9 @@ const updateOrderStatus = async (req, res) => {
 
     let canUpdate = false;
 
+    // NEW: updated flow array to include awaiting_delivery
+    const flow = ['pending', 'confirmed', 'processing', 'awaiting_delivery', 'shipped', 'out_for_delivery', 'delivered'];
+
     if (isAdmin) {
       canUpdate = true;
     } else if (isBuyer) {
@@ -495,14 +570,14 @@ const updateOrderStatus = async (req, res) => {
         canUpdate = true;
       }
     } else if (isFarmer) {
-      const farmerAllowed = ['confirmed', 'processing', 'shipped', 'cancelled'];
+      // NEW: added awaiting_delivery to farmer allowed statuses
+      const farmerAllowed = ['confirmed', 'processing', 'awaiting_delivery', 'shipped', 'cancelled'];
       if (farmerAllowed.includes(status)) {
         if (status === 'shipped' && !existingOrder.deliveryManId) {
           return res.status(400).json({
             message: 'Please assign a delivery man before marking as shipped',
           });
         }
-        const flow = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
         const currentIndex = flow.indexOf(existingOrder.status);
         const newIndex = flow.indexOf(status);
         if (newIndex > currentIndex || status === 'cancelled') {
@@ -512,7 +587,18 @@ const updateOrderStatus = async (req, res) => {
     } else if (isDeliveryMan) {
       const deliveryAllowed = ['out_for_delivery', 'delivered'];
       if (deliveryAllowed.includes(status)) {
-        const flow = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
+        // NEW: strict validation - delivery man can only start delivery after farmer shipped
+        if (status === 'out_for_delivery' && existingOrder.status !== 'shipped') {
+          return res.status(400).json({
+            message: 'Order must be marked as shipped by the farmer before starting delivery',
+          });
+        }
+        // NEW: strict validation - can only deliver after out_for_delivery
+        if (status === 'delivered' && existingOrder.status !== 'out_for_delivery') {
+          return res.status(400).json({
+            message: 'Order must be out for delivery before marking as delivered',
+          });
+        }
         const currentIndex = flow.indexOf(existingOrder.status);
         const newIndex = flow.indexOf(status);
         if (newIndex > currentIndex) {
@@ -571,7 +657,7 @@ const updateOrderStatus = async (req, res) => {
         });
       });
     } else {
-      // Normal status update
+      // Normal status update with notifications
       await prisma.$transaction(async (tx) => {
         await tx.order.update({
           where: { id },
@@ -586,11 +672,69 @@ const updateOrderStatus = async (req, res) => {
             changedBy: userId,
           },
         });
-        if (status === 'delivered' && existingOrder.deliveryManId) {
-          await tx.deliveryManProfile.update({
-            where: { userId: existingOrder.deliveryManId },
-            data: { isAvailable: true },
+
+        // NEW: Notifications and side effects on key status changes
+
+        // When farmer marks as shipped -> notify delivery man
+        if (status === 'shipped' && existingOrder.deliveryManId) {
+          await createNotification(tx, {
+            userId: existingOrder.deliveryManId,
+            type: 'order_update',
+            title: 'Order Ready for Pickup',
+            body: `Farmer has prepared order ${existingOrder.orderNumber}. Please collect the products.`,
+            data: { orderId: id, orderNumber: existingOrder.orderNumber },
           });
+        }
+
+        // When delivery man marks as out_for_delivery -> notify customer + create tracking point
+        if (status === 'out_for_delivery') {
+          await createNotification(tx, {
+            userId: existingOrder.buyerId,
+            type: 'order_update',
+            title: 'Your Order is Out for Delivery!',
+            body: `Order ${existingOrder.orderNumber} is now being delivered. You can track the live location in the app.`,
+            data: { orderId: id, orderNumber: existingOrder.orderNumber },
+          });
+
+          // Create initial tracking point from delivery man's current GPS
+          const dmProfile = await tx.deliveryManProfile.findUnique({
+            where: { userId: existingOrder.deliveryManId },
+          });
+          if (dmProfile?.currentLatitude && dmProfile?.currentLongitude) {
+            await tx.deliveryTracking.create({
+              data: {
+                orderId: id,
+                latitude: dmProfile.currentLatitude,
+                longitude: dmProfile.currentLongitude,
+                status: 'moving',
+              },
+            });
+          }
+        }
+
+        // When delivery man marks as delivered -> notify customer
+        if (status === 'delivered') {
+          await createNotification(tx, {
+            userId: existingOrder.buyerId,
+            type: 'order_update',
+            title: 'Order Delivered!',
+            body: `Your order ${existingOrder.orderNumber} has been delivered. Enjoy your products!`,
+            data: { orderId: id, orderNumber: existingOrder.orderNumber },
+          });
+        }
+
+        // When delivered, free up instant delivery men
+        if (status === 'delivered' && existingOrder.deliveryManId) {
+          const order = await tx.order.findUnique({
+            where: { id },
+            select: { deliveryType: true, deliveryManId: true },
+          });
+          if (order.deliveryType === 'instant' && order.deliveryManId) {
+            await tx.deliveryManProfile.update({
+              where: { userId: order.deliveryManId },
+              data: { isAvailable: true },
+            });
+          }
         }
       });
     }
@@ -624,10 +768,10 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-/**
- * GET /api/orders/:id/tracking
- * Get the full tracking/status history.
- */
+// =============================================================================
+// TRACKING
+// =============================================================================
+
 const getOrderTracking = async (req, res) => {
   try {
     const { id } = req.params;
@@ -674,10 +818,6 @@ const getOrderTracking = async (req, res) => {
   }
 };
 
-/**
- * POST /api/orders/:id/tracking
- * Add a delivery tracking update (GPS coordinates).
- */
 const addTrackingUpdate = async (req, res) => {
   try {
     const { id } = req.params;
@@ -718,10 +858,15 @@ const addTrackingUpdate = async (req, res) => {
   }
 };
 
+// =============================================================================
+// DELIVERY MANAGEMENT
+// =============================================================================
 
 /**
  * GET /api/orders/available-delivery-men
  * Farmers and admins can see which delivery men are online and available.
+ *
+ * MODIFIED: Now also shows capacity info for normal deliveries.
  */
 const getAvailableDeliveryMen = async (req, res) => {
   try {
@@ -736,22 +881,47 @@ const getAvailableDeliveryMen = async (req, res) => {
         name: true,
         phone: true,
         profileImage: true,
+        latitude: true,
+        longitude: true,
+        division: true,
+        district: true,
+        upazila: true,
         deliveryManProfile: {
           select: {
             vehicleType: true,
-            currentLatitude: true,     
-            currentLongitude: true,  
+            currentLatitude: true,
+            currentLongitude: true,
             isAvailable: true,
-            lastLocationUpdate: true,  
+            lastLocationUpdate: true,
+            preferredAreas: true,
+            maxOrders: true,
           },
         },
       },
     });
 
-    res.json(deliveryMen.map((dm) => ({
-      ...dm,
-      _id: dm.id,
-    })));
+    // NEW: Calculate active normal orders for each delivery man
+    const enriched = await Promise.all(
+      deliveryMen.map(async (dm) => {
+        const activeNormalOrders = await prisma.order.count({
+          where: {
+            deliveryManId: dm.id,
+            deliveryType: 'normal',
+            status: { in: ['awaiting_delivery', 'shipped', 'out_for_delivery'] },
+          },
+        });
+        return {
+          ...dm,
+          _id: dm.id,
+          activeNormalOrders,
+          canTakeInstant: dm.deliveryManProfile?.isAvailable === true,
+          canTakeNormal:
+            activeNormalOrders < (dm.deliveryManProfile?.maxOrders || 3),
+        };
+      })
+    );
+
+    res.json(enriched);
   } catch (error) {
     console.error('Get available delivery men error:', error);
     res.status(500).json({ message: error.message });
@@ -760,7 +930,10 @@ const getAvailableDeliveryMen = async (req, res) => {
 
 /**
  * PUT /api/orders/:id/assign-delivery
- * Farmer assigns a delivery man to an order. Also marks delivery man as unavailable.
+ * Farmer directly assigns a delivery man to an order.
+ *
+ * NOTE: This is the OLD direct-assignment flow. The NEW request-based flow
+ * is in deliveryController.js. Keep this for backward compatibility.
  */
 const assignDeliveryMan = async (req, res) => {
   try {
@@ -786,7 +959,6 @@ const assignDeliveryMan = async (req, res) => {
       return res.status(403).json({ message: 'Only the farmer who owns this order can assign a delivery man' });
     }
 
-    // Verify the delivery man exists and is available
     const dm = await prisma.user.findUnique({
       where: { id: deliveryManId },
       include: { deliveryManProfile: true },
@@ -800,7 +972,6 @@ const assignDeliveryMan = async (req, res) => {
       return res.status(400).json({ message: 'This delivery man is currently unavailable' });
     }
 
-    // Assign delivery man and mark them as busy
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id },
@@ -815,7 +986,7 @@ const assignDeliveryMan = async (req, res) => {
       await tx.orderStatusHistory.create({
         data: {
           orderId: id,
-          status: order.status, // keep current status, just log the assignment
+          status: order.status,
           notes: `Delivery man assigned: ${dm.name}`,
           changedBy: userId,
         },
@@ -832,7 +1003,6 @@ const assignDeliveryMan = async (req, res) => {
 /**
  * PUT /api/delivery/location
  * Delivery man updates their current GPS coordinates.
- * Also creates a tracking record for any active order they are assigned to.
  */
 const updateDeliveryLocation = async (req, res) => {
   try {
@@ -853,12 +1023,10 @@ const updateDeliveryLocation = async (req, res) => {
       return res.status(400).json({ message: 'Invalid coordinates' });
     }
 
-    // SECURITY: Validate coordinate bounds (Bangladesh roughly)
     if (lat < 20 || lat > 27 || lng < 88 || lng > 93) {
       return res.status(400).json({ message: 'Coordinates out of valid range' });
     }
 
-    // 1. Update the delivery man's profile with current location
     const updated = await prisma.deliveryManProfile.update({
       where: { userId: req.user.id },
       data: {
@@ -868,8 +1036,6 @@ const updateDeliveryLocation = async (req, res) => {
       },
     });
 
-    // 2. Find any active order assigned to this delivery man
-    //    and create a tracking record for it
     const activeOrder = await prisma.order.findFirst({
       where: {
         deliveryManId: req.user.id,
@@ -934,18 +1100,19 @@ const getLatestTracking = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Also get delivery man's current live location from their profile
     let currentLocation = null;
+    let lastLocationUpdate = null;
     if (order.deliveryManId) {
       const dmProfile = await prisma.deliveryManProfile.findUnique({
         where: { userId: order.deliveryManId },
-        select: { currentLatitude: true, currentLongitude: true, isAvailable: true },
+        select: { currentLatitude: true, currentLongitude: true, isAvailable: true, lastLocationUpdate: true },
       });
       if (dmProfile) {
         currentLocation = {
           latitude: dmProfile.currentLatitude,
           longitude: dmProfile.currentLongitude,
         };
+        lastLocationUpdate = dmProfile.lastLocationUpdate;
       }
     }
 
@@ -953,7 +1120,7 @@ const getLatestTracking = async (req, res) => {
       orderId: id,
       latestTracking: latest || null,
       currentLocation,
-      lastLocationUpdate: dmProfile?.lastLocationUpdate || null,
+      lastLocationUpdate,
     });
   } catch (error) {
     console.error('Get latest tracking error:', error);
@@ -964,22 +1131,17 @@ const getLatestTracking = async (req, res) => {
 /**
  * GET /api/orders/delivery/location/:userId
  * Get a delivery man's current live GPS location.
- * SECURITY: Only the delivery man themselves, an admin, or a buyer/farmer
- * who has an active order with this delivery man can view the location.
  */
 const getDeliveryLocation = async (req, res) => {
   try {
     const targetId = req.params.userId;
 
-    // SECURITY: Only allow if user is requesting their own location,
-    // or if they are an admin, or if the delivery man is assigned to their order
     const isSelf = req.user.id === targetId;
     const isAdmin = req.user.role === 'admin';
 
     let isAuthorized = isSelf || isAdmin;
 
     if (!isAuthorized && (req.user.role === 'buyer' || req.user.role === 'farmer')) {
-      // Check if this delivery man is assigned to any active order belonging to this user
       const order = await prisma.order.findFirst({
         where: {
           deliveryManId: targetId,
@@ -1018,6 +1180,10 @@ const getDeliveryLocation = async (req, res) => {
   }
 };
 
+// =============================================================================
+// EXPORTS
+// =============================================================================
+
 module.exports = {
   placeOrder,
   getMyOrders,
@@ -1029,5 +1195,5 @@ module.exports = {
   assignDeliveryMan,
   updateDeliveryLocation,
   getLatestTracking,
-  getDeliveryLocation, 
+  getDeliveryLocation,
 };
