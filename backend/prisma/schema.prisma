@@ -270,6 +270,7 @@ model DeliveryManProfile {
   licenseNumber    String?
   currentLatitude  Float?
   currentLongitude Float?
+  lastLocationUpdate DateTime?  //When was gps last Updated
   isAvailable      Boolean @default(true)
 }
 

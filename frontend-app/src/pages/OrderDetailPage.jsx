@@ -20,10 +20,11 @@ function OrderDetailPage() {
   const [updating, setUpdating] = useState(false);
 
   const [liveLocation, setLiveLocation] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [deliveryMen, setDeliveryMen] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigning, setAssigning] = useState(false);
-
+  
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user.role;
 
@@ -64,6 +65,9 @@ function OrderDetailPage() {
           setLiveLocation([data.currentLocation.latitude, data.currentLocation.longitude]);
         } else if (data.latestTracking) {
           setLiveLocation([data.latestTracking.latitude, data.latestTracking.longitude]);
+        }
+        if (data.lastLocationUpdate) {
+          setLastUpdated(new Date(data.lastLocationUpdate));
         }
       } catch (err) {
         console.log("Tracking poll error:", err.message);
@@ -617,9 +621,9 @@ function OrderDetailPage() {
                   />
                 </Suspense>
 
-                {liveLocation && (
+                {lastUpdated && (
                   <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#6b7280", textAlign: "center" }}>
-                    Last updated: {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    Last updated: {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </p>
                 )}
               </div>

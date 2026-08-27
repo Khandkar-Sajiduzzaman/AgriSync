@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, updateOrderStatus } from "../api/orderApi";
 import { updateDeliveryLocation } from "../api/orderApi";
+
+const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
 
 function DeliveryDashboard() {
   const [orders, setOrders] = useState([]);
@@ -176,6 +178,17 @@ const loadOrders = async () => {
                     <strong>Address:</strong> {order.deliveryAddress}
                   </p>
                 </div>
+
+                {locationEnabled && order.status === "out_for_delivery" && (
+                  <div style={{ marginBottom: "16px", borderRadius: "12px", overflow: "hidden", border: "1px solid #e5e7eb" }}>
+                    <Suspense fallback={<div style={{ height: "200px", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading map...</div>}>
+                      <LiveMap
+                        deliveryPosition={null}
+                        buyerPosition={null}
+                      />
+                    </Suspense>
+                  </div>
+                )}
 
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   <Link to={`/orders/${order._id}`} style={{ textDecoration: "none" }}>
