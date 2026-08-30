@@ -116,10 +116,11 @@ function OrderDetailPage() {
     }
   };
 
-  const statusConfig = {
+    const statusConfig = {
     pending: { color: "#f59e0b", bg: "#fffbeb", label: "Pending", icon: "⏳" },
     confirmed: { color: "#3b82f6", bg: "#eff6ff", label: "Confirmed", icon: "✓" },
     processing: { color: "#8b5cf6", bg: "#f5f3ff", label: "Processing", icon: "⚙️" },
+    awaiting_delivery: { color: "#f97316", bg: "#fff7ed", label: "Awaiting Delivery", icon: "📦" },
     shipped: { color: "#06b6d4", bg: "#ecfeff", label: "Shipped", icon: "🚚" },
     out_for_delivery: { color: "#f97316", bg: "#fff7ed", label: "Out for Delivery", icon: "🛵" },
     delivered: { color: "#10b981", bg: "#ecfdf5", label: "Delivered", icon: "✅" },
@@ -132,14 +133,16 @@ function OrderDetailPage() {
       pending: [{ label: "Confirm Order", status: "confirmed", color: "#3b82f6" }],
       confirmed: [{ label: "Start Processing", status: "processing", color: "#8b5cf6" }],
       processing: [
+        { label: "Choose Delivery Man", action: "choose_dm", color: "#f59e0b" },
+      ],
+      awaiting_delivery: [
         { label: "Mark as Shipped", status: "shipped", color: "#06b6d4" },
-        { label: "Assign Delivery Man", action: "assign", color: "#f59e0b" },
       ],
     };
     return flow[currentStatus] || [];
   };
-
-  const progressSteps = ["pending", "confirmed", "processing", "shipped", "out_for_delivery", "delivered"];
+  
+  const progressSteps = ["pending", "confirmed", "processing", "awaiting_delivery", "shipped", "out_for_delivery", "delivered"];
 
   if (loading) {
     return (

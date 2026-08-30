@@ -55,6 +55,7 @@ enum OrderStatus {
   pending          // Buyer placed order, waiting farmer confirmation
   confirmed        // Farmer accepted the order
   processing       // Farmer is preparing the items
+  awaiting_delivery
   shipped          // Items handed to delivery man
   out_for_delivery // Delivery man is on the way
   delivered        // Buyer received the items
@@ -125,6 +126,20 @@ enum ModerationStatus {
   rejected
 }
 
+enum DeliveryType {
+  normal
+  instant
+  same_day
+  scheduled
+}
+
+enum DeliveryRequestStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+  expired
+}
 // =============================================================================
 // USER & ROLE PROFILES
 // =============================================================================

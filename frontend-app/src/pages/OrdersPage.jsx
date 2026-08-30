@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, updateOrderStatus } from "../api/orderApi";
+import { findNearbyDeliveryMen, sendDeliveryRequest } from "../api/deliveryApi";
 
 function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
+
+  // NEW: state for delivery man selection modal
+  const [showDmModal, setShowDmModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [nearbyDeliveryMen, setNearbyDeliveryMen] = useState([]);
+  const [loadingDm, setLoadingDm] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState(false);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user.role;
@@ -28,7 +36,6 @@ function OrdersPage() {
   };
 
   const handleStatusUpdate = async (orderId, newStatus, notes = "") => {
-    // 1. Optimistically update the UI immediately
     const previousOrders = orders;
     setOrders((prev) =>
       prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
@@ -37,12 +44,51 @@ function OrdersPage() {
 
     try {
       await updateOrderStatus(orderId, { status: newStatus, notes });
-      // Success — UI already shows the new status, no need to reload everything
     } catch (err) {
       setError(err.message);
-      setOrders(previousOrders); // Revert on error
+      setOrders(previousOrders);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // NEW: Open delivery man selection modal
+  const handleOpenChooseDm = async (orderId) => {
+    setSelectedOrderId(orderId);
+    setShowDmModal(true);
+    setLoadingDm(true);
+    setError("");
+    try {
+      const data = await findNearbyDeliveryMen(orderId, 50); // 50km radius
+      setNearbyDeliveryMen(data.deliveryMen || []);
+    } catch (err) {
+      setError(err.message || "Failed to find delivery men");
+      setNearbyDeliveryMen([]);
+    } finally {
+      setLoadingDm(false);
+    }
+  };
+
+  // NEW: Send delivery request to selected delivery man
+  const handleSendRequest = async (deliveryManId, dmName) => {
+    if (!selectedOrderId) return;
+    setSendingRequest(true);
+    setError("");
+    try {
+      await sendDeliveryRequest(selectedOrderId, deliveryManId, `Please deliver this order.`);
+      // Optimistically update order status to awaiting_delivery
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === selectedOrderId ? { ...o, status: "awaiting_delivery" } : o
+        )
+      );
+      setShowDmModal(false);
+      setSelectedOrderId(null);
+      setNearbyDeliveryMen([]);
+    } catch (err) {
+      setError(err.message || "Failed to send request");
+    } finally {
+      setSendingRequest(false);
     }
   };
 
@@ -50,6 +96,7 @@ function OrdersPage() {
     pending: { color: "#f59e0b", bg: "#fffbeb", label: "Pending" },
     confirmed: { color: "#3b82f6", bg: "#eff6ff", label: "Confirmed" },
     processing: { color: "#8b5cf6", bg: "#f5f3ff", label: "Processing" },
+    awaiting_delivery: { color: "#f97316", bg: "#fff7ed", label: "Awaiting Delivery" },
     shipped: { color: "#06b6d4", bg: "#ecfeff", label: "Shipped" },
     out_for_delivery: { color: "#f97316", bg: "#fff7ed", label: "Out for Delivery" },
     delivered: { color: "#10b981", bg: "#ecfdf5", label: "Delivered" },
@@ -57,11 +104,17 @@ function OrdersPage() {
     refunded: { color: "#6b7280", bg: "#f9fafb", label: "Refunded" },
   };
 
-  const getFarmerActions = (currentStatus) => {
+  // MODIFIED: farmer action flow now includes "Choose Delivery Man" before Ship
+  const getFarmerActions = (currentStatus, order) => {
     const flow = {
-      pending: [{ label: "Confirm", status: "confirmed", color: "#3b82f6" }],
-      confirmed: [{ label: "Process", status: "processing", color: "#8b5cf6" }],
-      processing: [{ label: "Ship", status: "shipped", color: "#06b6d4" }],
+      pending: [{ label: "Confirm", status: "confirmed", color: "#3b82f6", type: "status" }],
+      confirmed: [{ label: "Process", status: "processing", color: "#8b5cf6", type: "status" }],
+      processing: [
+        { label: "Choose Delivery Man", action: "choose_dm", color: "#f59e0b", type: "action" },
+      ],
+      awaiting_delivery: [
+        { label: "Ship", status: "shipped", color: "#06b6d4", type: "status" },
+      ],
     };
     return flow[currentStatus] || [];
   };
@@ -188,6 +241,11 @@ function OrdersPage() {
                       </p>
                       <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>
                         {role === "buyer" ? "Farmer" : "Buyer"} • {order.paymentMethod?.replace(/_/g, " ")}
+                        {order.deliveryType && (
+                          <span style={{ marginLeft: "8px", textTransform: "capitalize" }}>
+                            • {order.deliveryType === "instant" ? "⚡ Express" : "🚚 Normal"} Delivery
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -270,11 +328,17 @@ function OrdersPage() {
 
                     {/* Farmer Actions */}
                     {role === "farmer" &&
-                      getFarmerActions(order.status).map((action) => (
+                      getFarmerActions(order.status, order).map((action) => (
                         <button
-                          key={action.status}
-                          onClick={() => handleStatusUpdate(order._id, action.status, `${action.label} by farmer`)}
-                          disabled={updatingId === order._id}
+                          key={action.status || action.action}
+                          onClick={() => {
+                            if (action.type === "action" && action.action === "choose_dm") {
+                              handleOpenChooseDm(order._id);
+                            } else {
+                              handleStatusUpdate(order._id, action.status, `${action.label} by farmer`);
+                            }
+                          }}
+                          disabled={updatingId === order._id || sendingRequest}
                           style={{
                             padding: "8px 18px",
                             background: action.color,
@@ -287,7 +351,7 @@ function OrdersPage() {
                             boxShadow: `0 2px 6px ${action.color}40`,
                           }}
                         >
-                          {updatingId === order._id ? "Updating..." : action.label}
+                          {updatingId === order._id || sendingRequest ? "Updating..." : action.label}
                         </button>
                       ))}
                   </div>
@@ -295,6 +359,113 @@ function OrdersPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* NEW: Delivery Man Selection Modal */}
+      {showDmModal && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "20px",
+        }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            maxWidth: "500px",
+            width: "100%",
+            maxHeight: "80vh",
+            overflow: "auto",
+            padding: "24px",
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "700", color: "#111827" }}>
+              Choose a Delivery Partner
+            </h3>
+            <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#6b7280" }}>
+              Select an available delivery man to send a delivery request.
+            </p>
+
+            {loadingDm ? (
+              <div style={{ textAlign: "center", padding: "40px" }}>
+                <div style={{ width: "32px", height: "32px", border: "3px solid #e5e7eb", borderTop: "3px solid #2e7d32", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto" }} />
+                <p style={{ color: "#6b7280", marginTop: "12px", fontSize: "14px" }}>Finding nearby delivery men...</p>
+              </div>
+            ) : nearbyDeliveryMen.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px", background: "#f9fafb", borderRadius: "12px" }}>
+                <p style={{ color: "#6b7280", fontSize: "14px" }}>No available delivery men found nearby.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {nearbyDeliveryMen.map((dm) => (
+                  <div
+                    key={dm._id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "14px",
+                      background: dm.canTake ? "#f0fdf4" : "#f9fafb",
+                      border: `1px solid ${dm.canTake ? "#86efac" : "#e5e7eb"}`,
+                      borderRadius: "10px",
+                      opacity: dm.canTake ? 1 : 0.6,
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: "0", fontSize: "14px", fontWeight: "600", color: "#111827" }}>
+                        {dm.name}
+                        {dm.areaMatch && <span style={{ marginLeft: "6px", fontSize: "11px", color: "#16a34a", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px" }}>Preferred Area</span>}
+                      </p>
+                      <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#6b7280" }}>
+                        {dm.vehicleType || "No vehicle"} • {dm.distanceKm ? `${dm.distanceKm} km away` : "Distance unknown"}
+                      </p>
+                      <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: dm.canTake ? "#16a34a" : "#dc2626" }}>
+                        {dm.reason}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSendRequest(dm._id, dm.name)}
+                      disabled={!dm.canTake || sendingRequest}
+                      style={{
+                        padding: "8px 16px",
+                        background: dm.canTake ? "#2e7d32" : "#d1d5db",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: dm.canTake ? "pointer" : "not-allowed",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {sendingRequest ? "Sending..." : "Send Request"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => { setShowDmModal(false); setSelectedOrderId(null); setNearbyDeliveryMen([]); }}
+              style={{
+                marginTop: "16px",
+                width: "100%",
+                padding: "10px",
+                background: "transparent",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "14px",
+                color: "#6b7280",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

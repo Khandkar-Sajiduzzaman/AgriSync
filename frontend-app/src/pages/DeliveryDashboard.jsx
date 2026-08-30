@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, updateOrderStatus } from "../api/orderApi";
 import { updateDeliveryLocation } from "../api/orderApi";
+import { getDeliveryRequests, respondToDeliveryRequest, getMyActiveDeliveries } from "../api/deliveryApi";
 
 const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
 
@@ -12,20 +13,41 @@ function DeliveryDashboard() {
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
 
-const loadOrders = async () => {
-  setLoading(true);
-  try {
-    const result = await getMyOrders();
-    setOrders(result.data || []); // Extract array from paginated response
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  // NEW: delivery requests state
+  const [deliveryRequests, setDeliveryRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [respondingId, setRespondingId] = useState(null);
+
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      // Use getMyActiveDeliveries for better organization, fallback to getMyOrders
+      const result = await getMyOrders();
+      setOrders(result.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // NEW: load pending delivery requests
+  const loadDeliveryRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const data = await getDeliveryRequests("pending");
+      setDeliveryRequests(data || []);
+    } catch (err) {
+      console.log("Failed to load delivery requests:", err.message);
+      setDeliveryRequests([]);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
 
   useEffect(() => {
     loadOrders();
+    loadDeliveryRequests();
   }, []);
 
   // Send GPS location every 10 seconds while on this page
@@ -44,21 +66,16 @@ const loadOrders = async () => {
     };
 
     if (navigator.geolocation) {
-      // Get initial position
       navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
         console.log("Geolocation error:", err.message);
       });
 
-      // Then watch for changes and send every 10s
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          // Throttle: only send if 10s passed since last send
-        },
+        (pos) => {},
         (err) => console.log("Watch error:", err.message),
         { enableHighAccuracy: true, maximumAge: 10000 }
       );
 
-      // Use interval for reliable 10-second updates
       intervalId = setInterval(() => {
         navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
           console.log("Interval geolocation error:", err.message);
@@ -84,6 +101,22 @@ const loadOrders = async () => {
     }
   };
 
+  // NEW: handle accept/reject delivery request
+  const handleRespondToRequest = async (requestId, response) => {
+    setRespondingId(requestId);
+    setError("");
+    try {
+      await respondToDeliveryRequest(requestId, response);
+      // Refresh both requests and orders
+      await loadDeliveryRequests();
+      await loadOrders();
+    } catch (err) {
+      setError(err.message || `Failed to ${response} request`);
+    } finally {
+      setRespondingId(null);
+    }
+  };
+
   const statusConfig = {
     shipped: { color: "#06b6d4", bg: "#ecfeff", label: "Ready for Pickup" },
     out_for_delivery: { color: "#f97316", bg: "#fff7ed", label: "Out for Delivery" },
@@ -101,7 +134,7 @@ const loadOrders = async () => {
             Delivery Dashboard
           </h1>
           <p style={{ color: "#6b7280", fontSize: "15px", margin: "0" }}>
-            Manage your deliveries and update your location
+            Manage your delivery requests and active deliveries
           </p>
         </div>
         <button
@@ -127,9 +160,116 @@ const loadOrders = async () => {
         </div>
       )}
 
+      {/* NEW: Delivery Requests Section */}
+      <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#374151", margin: "0 0 16px 0" }}>
+        📬 Delivery Requests ({deliveryRequests.length})
+      </h2>
+
+      {loadingRequests ? (
+        <div style={{ textAlign: "center", padding: "24px", background: "#f9fafb", borderRadius: "12px", marginBottom: "32px" }}>
+          <div style={{ width: "28px", height: "28px", border: "3px solid #e5e7eb", borderTop: "3px solid #2e7d32", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto" }} />
+          <p style={{ color: "#6b7280", marginTop: "12px", fontSize: "14px" }}>Loading requests...</p>
+        </div>
+      ) : deliveryRequests.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "24px", background: "#f9fafb", borderRadius: "12px", marginBottom: "32px" }}>
+          <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>No pending delivery requests right now.</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "32px" }}>
+          {deliveryRequests.map((req) => (
+            <div
+              key={req._id}
+              style={{
+                background: "#ffffff",
+                borderRadius: "12px",
+                border: "1px solid #e5e7eb",
+                padding: "20px 24px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
+                <div>
+                  <span style={{ fontSize: "15px", fontWeight: "600", color: "#111827" }}>
+                    {req.order?.orderNumber}
+                  </span>
+                  <span
+                    style={{
+                      marginLeft: "10px",
+                      padding: "4px 12px",
+                      borderRadius: "999px",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      background: req.requestType === "instant" ? "#fff7ed" : "#eff6ff",
+                      color: req.requestType === "instant" ? "#c2410c" : "#1d4ed8",
+                    }}
+                  >
+                    {req.requestType === "instant" ? "⚡ Instant" : "🚚 Normal"}
+                  </span>
+                </div>
+                <span style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>
+                  ৳{req.order?.totalAmount}
+                </span>
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <p style={{ margin: "0 0 4px 0", fontSize: "13px", color: "#6b7280" }}>
+                  <strong>Farmer:</strong> {req.order?.farmer?.name} • {req.order?.farmer?.phone}
+                </p>
+                <p style={{ margin: "0 0 4px 0", fontSize: "13px", color: "#6b7280" }}>
+                  <strong>Buyer:</strong> {req.order?.buyer?.name} • {req.order?.buyer?.address}
+                </p>
+                <p style={{ margin: "0", fontSize: "13px", color: "#6b7280" }}>
+                  <strong>Delivery:</strong> {req.order?.deliveryArea}, {req.order?.deliveryCity}
+                </p>
+                {req.message && (
+                  <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#92400e", fontStyle: "italic", background: "#fffbeb", padding: "8px", borderRadius: "6px" }}>
+                    "{req.message}"
+                  </p>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => handleRespondToRequest(req._id, "accepted")}
+                  disabled={respondingId === req._id}
+                  style={{
+                    padding: "8px 18px",
+                    background: "#2e7d32",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {respondingId === req._id ? "Processing..." : "✓ Accept"}
+                </button>
+                <button
+                  onClick={() => handleRespondToRequest(req._id, "rejected")}
+                  disabled={respondingId === req._id}
+                  style={{
+                    padding: "8px 18px",
+                    background: "#fef2f2",
+                    color: "#dc2626",
+                    border: "1px solid #fecaca",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {respondingId === req._id ? "Processing..." : "✕ Decline"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Active Deliveries */}
       <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#374151", margin: "0 0 16px 0" }}>
-        Active Deliveries ({activeOrders.length})
+        🛵 Active Deliveries ({activeOrders.length})
       </h2>
 
       {activeOrders.length === 0 ? (

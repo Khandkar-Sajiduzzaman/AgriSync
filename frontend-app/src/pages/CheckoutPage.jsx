@@ -7,6 +7,7 @@ import { useCart } from "../context/CartContext";
 function CheckoutPage() {
   const [cart, setCart] = useState({ items: [], summary: { totalItems: 0, totalPrice: 0 } });
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryType, setDeliveryType] = useState("normal");
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
   const [loading, setLoading] = useState(true);
@@ -48,13 +49,23 @@ function CheckoutPage() {
     setError("");
     console.log('Checkout: Placing order...');
     
+    // Extract city and area from address for delivery grouping
+    // Simple heuristic: last comma-separated part = city, second-last = area
+    const addressParts = deliveryAddress.split(',').map(s => s.trim());
+    const deliveryCity = addressParts[addressParts.length - 1] || addressParts[0] || '';
+    const deliveryArea = addressParts.length > 1 ? addressParts[addressParts.length - 2] : '';
+    
     try {
       const data = await placeOrder({
         deliveryAddress,
         deliveryNotes,
         paymentMethod,
-        deliveryFee,        // Send delivery fee to backend
+        deliveryFee,        // Send calculated delivery fee to backend
         discountAmount: 0,
+        // NEW: let customer choose delivery type
+        deliveryType,
+        deliveryCity,
+        deliveryArea,
       });
       console.log('Checkout: Order placed successfully!', data);
       setSuccess(data);
@@ -68,8 +79,10 @@ function CheckoutPage() {
     }
   };
 
-  // Calculate totals
-  const deliveryFee = 50;
+   // Calculate totals — delivery fee depends on type chosen by customer
+  // normal = ৳60 (standard, may be batched with other orders)
+  // instant = ৳150 (priority, dedicated delivery man)
+  const deliveryFee = deliveryType === "instant" ? 150 : 60;
   const discount = 0;
   const grandTotal = cart.summary.totalPrice + deliveryFee - discount;
 
@@ -230,7 +243,7 @@ function CheckoutPage() {
               <span style={{ fontSize: "14px", color: "#333" }}>৳{cart.summary.totalPrice}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-              <span style={{ color: "#666", fontSize: "14px" }}>Delivery Fee</span>
+              <span style={{ color: "#666", fontSize: "14px" }}>Delivery Fee ({deliveryType === "instant" ? "Express" : "Normal"})</span>
               <span style={{ fontSize: "14px", color: "#333" }}>৳{deliveryFee}</span>
             </div>
             {discount > 0 && (
@@ -348,7 +361,60 @@ function CheckoutPage() {
             <option value="card">💳 Credit/Debit Card</option>
           </select>
         </div>
-
+        {/* NEW: Delivery Type Selection */}
+        <div style={{ marginBottom: "25px" }}>
+          <label style={{ display: "block", marginBottom: "6px", fontWeight: "600", fontSize: "14px", color: "#333" }}>
+            Delivery Type
+          </label>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setDeliveryType("normal")}
+              style={{
+                flex: 1,
+                minWidth: "140px",
+                padding: "14px",
+                background: deliveryType === "normal" ? "#e8f5e9" : "#fff",
+                color: deliveryType === "normal" ? "#2e7d32" : "#555",
+                border: `2px solid ${deliveryType === "normal" ? "#2e7d32" : "#ddd"}`,
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: deliveryType === "normal" ? "700" : "500",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ fontSize: "16px", marginBottom: "4px" }}>🚚</div>
+              <div>Normal Delivery</div>
+              <div style={{ fontSize: "12px", color: deliveryType === "normal" ? "#1b5e20" : "#888", marginTop: "4px" }}>
+                ৳60 — Standard delivery, may be batched
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeliveryType("instant")}
+              style={{
+                flex: 1,
+                minWidth: "140px",
+                padding: "14px",
+                background: deliveryType === "instant" ? "#fff3e0" : "#fff",
+                color: deliveryType === "instant" ? "#e65100" : "#555",
+                border: `2px solid ${deliveryType === "instant" ? "#f57c00" : "#ddd"}`,
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: deliveryType === "instant" ? "700" : "500",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ fontSize: "16px", marginBottom: "4px" }}>⚡</div>
+              <div>Express Delivery</div>
+              <div style={{ fontSize: "12px", color: deliveryType === "instant" ? "#bf360c" : "#888", marginTop: "4px" }}>
+                ৳150 — Priority, dedicated delivery man
+              </div>
+            </button>
+          </div>
+        </div>
         <div style={{ display: "flex", gap: "12px" }}>
           <button
             onClick={() => navigate("/cart")}

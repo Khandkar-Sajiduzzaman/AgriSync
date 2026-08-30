@@ -16,6 +16,7 @@ const {
   updateDeliveryPreferences,
   getMyNotifications,
   markNotificationRead,
+  toggleAvailability,
 } = require("../controllers/deliveryController");
 
 // Existing: delivery man updates their GPS location
@@ -47,6 +48,9 @@ router.get("/batches", protect, getNormalDeliveryBatches);
 
 // NEW: Delivery man updates their preferences (areas, max orders)
 router.put("/preferences", protect, updateDeliveryPreferences);
+
+// NEW: Delivery man toggles online/offline availability
+router.put("/toggle-availability", protect, toggleAvailability);
 
 // NEW: Get my notifications
 router.get("/notifications", protect, getMyNotifications);

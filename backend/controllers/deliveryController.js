@@ -1113,6 +1113,50 @@ const markNotificationRead = async (req, res) => {
 };
 
 // =============================================================================
+// TOGGLE AVAILABILITY
+// =============================================================================
+
+/**
+ * PUT /api/delivery/toggle-availability
+ * Delivery man manually goes online or offline.
+ *
+ * How it works:
+ * - When going online (isAvailable: true), the delivery man starts receiving
+ *   delivery requests from farmers.
+ * - When going offline (isAvailable: false), no new requests are sent to them.
+ * - For instant deliveries, availability is auto-managed. But for normal
+ *   deliveries, the delivery man controls their own status.
+ *
+ * Why: Delivery men need control over WHEN they work. This is the "turn on
+ * location" feature — they go online when ready to work, offline when done.
+ */
+const toggleAvailability = async (req, res) => {
+  try {
+    if (req.user.role !== 'delivery_man' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only delivery men can toggle availability' });
+    }
+
+    const { isAvailable } = req.body;
+    if (typeof isAvailable !== 'boolean') {
+      return res.status(400).json({ message: 'isAvailable must be true or false' });
+    }
+
+    const updated = await prisma.deliveryManProfile.update({
+      where: { userId: req.user.id },
+      data: { isAvailable },
+    });
+
+    res.json({
+      message: isAvailable ? 'You are now ONLINE and will receive delivery requests' : 'You are now OFFLINE',
+      isAvailable: updated.isAvailable,
+    });
+  } catch (error) {
+    console.error('Toggle availability error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
@@ -1128,4 +1172,5 @@ module.exports = {
   updateDeliveryPreferences,
   getMyNotifications,
   markNotificationRead,
+  toggleAvailability,
 };
