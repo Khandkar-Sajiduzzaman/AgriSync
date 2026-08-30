@@ -5,6 +5,125 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Required for Prisma migrations (bypasses Supabase pooler)
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum Role {
+  buyer
+  farmer
+  delivery_man
+  admin
+}
+
+
+enum AccountStatus {
+  active
+  suspended
+  deactivated
+}
+
+enum OrderStatus {
+  pending          // Buyer placed order, waiting farmer confirmation
+  confirmed        // Farmer accepted the order
+  processing       // Farmer is preparing the items
+  awaiting_delivery
+  shipped          // Items handed to delivery man
+  out_for_delivery // Delivery man is on the way
+  delivered        // Buyer received the items
+  cancelled        // Cancelled by buyer or farmer
+  refunded         // Payment refunded
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+enum PaymentMethod {
+  cash_on_delivery
+  online_transfer
+  mobile_banking
+  card
+}
+
+enum NegotiationStatus {
+  pending
+  accepted
+  rejected
+  countered
+  expired
+}
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+}
+
+enum NotificationType {
+  order_update
+  message
+  negotiation
+  follow
+  review
+  promotion
+  system
+  price_drop
+  stock_alert
+}
+
+enum InventoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UnitType {
+  kg
+  gram
+  liter
+  piece
+  bunch
+  dozen
+  bag
+  box
+}
+enum ModerationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum DeliveryType {
+  normal
+  instant
+  same_day
+  scheduled
+}
+
+enum DeliveryRequestStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+  expired
+}
+// =============================================================================
+// USER & ROLE PROFILES
+// =============================================================================
+// Single User table with role enum + separate profile tables for each role.
+// This is the Prisma way of handling inheritance (class table inheritance).
+// Matches the class diagram: User is the base; Admin, Buyer, Farmer,
+// DeliveryMan are specializations.
+// =============================================================================
+
   directUrl = env("DIRECT_URL")
 }
 
@@ -36,6 +155,45 @@ model User {
   followers                 Follow[]                 @relation("UserFollowers")
   inventoryRequests         InventoryChangeRequest[] @relation("InventoryRequestFarmer")
   reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")
+
+  // --- Relations: Wishlist & Follow ---
+  wishlist      Wishlist[]
+  following     Follow[]    @relation("UserFollowing")
+  followers     Follow[]    @relation("UserFollowers")
+
+  // --- Relations: Orders ---
+  ordersAsBuyer   Order[]   @relation("OrderBuyer")
+  ordersAsFarmer  Order[]   @relation("OrderFarmer")
+
+  // --- Relations: Delivery ---
+  assignedDeliveries Order[] @relation("OrderDeliveryMan")
+
+    // NEW RELATION: delivery requests sent to this delivery man
+  deliveryRequests   DeliveryRequest[] @relation("DeliveryManRequests")
+
+  // --- Relations: Chat ---
+  messagesSent     Message[] @relation("MessageSender")
+  messagesReceived Message[] @relation("MessageReceiver")
+
+  // --- Relations: Reviews ---
+  reviewsGiven     Review[]  @relation("ReviewAuthor")
+
+  // --- Relations: Negotiation ---
+  negotiationsAsBuyer  Negotiation[] @relation("NegotiationBuyer")
+  negotiationsAsFarmer Negotiation[] @relation("NegotiationFarmer")
+
+  // --- Relations: Notifications ---
+  notifications    Notification[]
+
+  // --- Relations: Cart ---
+  cartItems        CartItem[]
+
+  // --- Relations: Product Votes ---
+  productVotes     ProductVote[]
+
+  // --- Relations: Admin ---
+  adminActions     AdminActionLog[]
+  reportsGenerated SalesReport[]
   messagesReceived          Message[]                @relation("MessageReceiver")
   messagesSent              Message[]                @relation("MessageSender")
   negotiationsAsBuyer       Negotiation[]            @relation("NegotiationBuyer")
@@ -90,6 +248,30 @@ model BuyerProfile {
 }
 
 model DeliveryManProfile {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  vehicleType      String? // e.g., "Motorcycle", "Van", "Truck"
+  licenseNumber    String?
+  currentLatitude  Float?
+  currentLongitude Float?
+  lastLocationUpdate DateTime?  //When was gps last Updated
+  isAvailable      Boolean @default(true)
+  // NEW: area preferences and capacity
+  preferredAreas   String[]
+  maxOrders        Int     @default(3)
+}
+
+// =============================================================================
+// CATEGORY
+// =============================================================================
+// Replaces free-text category with a proper taxonomy.
+// Supports sub-categories via self-relation (parent/children).
+// For NOW the frontend still sends free-text `category` — store that in
+// Product.legacyCategory. When you migrate to structured categories, use
+// Product.categoryId instead.
+// =============================================================================
   id                 String    @id @default(uuid())
   userId             String    @unique
   vehicleType        String?
@@ -239,6 +421,20 @@ model Order {
   deliveryManId     String?
   estimatedDelivery DateTime?
   deliveredAt       DateTime?
+
+  // NEW FIELDS FOR DELIVERY SYSTEM
+  deliveryType    DeliveryType  @default(normal)
+  deliveryCity    String?
+  deliveryArea    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items           OrderItem[]
+  statusHistory   OrderStatusHistory[]
+  reviews         Review[]
+  trackingUpdates DeliveryTracking[]
+  deliveryRequests DeliveryRequest[]
   deliveryType      DeliveryType         @default(normal)
   deliveryCity      String?
   deliveryArea      String?
@@ -570,6 +766,20 @@ model AdminActionLog {
 }
 
 model DeliveryRequest {
+  id              String                @id @default(uuid())
+  orderId         String
+  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryManId   String
+  deliveryMan     User                  @relation("DeliveryManRequests", fields: [deliveryManId], references: [id], onDelete: Cascade)
+  status          DeliveryRequestStatus @default(pending)
+  requestType     DeliveryType
+  message         String?
+  createdAt       DateTime              @default(now())
+  respondedAt     DateTime?
+
+  @@index([deliveryManId, status])
+  @@index([orderId])
+}
   id            String                @id
   orderId       String
   deliveryManId String
