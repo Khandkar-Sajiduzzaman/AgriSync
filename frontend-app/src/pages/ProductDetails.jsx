@@ -220,6 +220,17 @@ function ProductDetails() {
         <div>
           <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>{product.name}</h2>
 
+          {product.promotions?.map((promotion) => (
+            <div key={promotion._id} style={{ marginBottom: 16, padding: "14px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #86efac", color: "#166534" }}>
+              <strong style={{ display: "block", fontSize: 16 }}>Promotion: {promotion.title}</strong>
+              <span>{promotion.description}</span>
+              <div style={{ marginTop: 6, fontWeight: 700 }}>
+                {promotion.discountPercent ? `${promotion.discountPercent}% off` : `৳${promotion.discountAmount} off`}
+                {promotion.minOrderAmount ? ` · Minimum order ৳${promotion.minOrderAmount}` : ""}
+              </div>
+            </div>
+          ))}
+
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <span style={{ color: "#fbbf24", fontSize: "18px" }}>
               {"★".repeat(Math.round(product.averageRating || 0))}

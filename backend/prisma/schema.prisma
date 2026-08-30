@@ -31,7 +31,7 @@ model User {
   cartItems                 CartItem[]
   deliveryManProfile        DeliveryManProfile?
   DeliveryRequest           DeliveryRequest[]
-  farmerProfile             FarmerProfile?
+  farmerProfile              FarmerProfile?
   following                 Follow[]                 @relation("UserFollowing")
   followers                 Follow[]                 @relation("UserFollowers")
   inventoryRequests         InventoryChangeRequest[] @relation("InventoryRequestFarmer")
@@ -46,6 +46,8 @@ model User {
   ordersAsFarmer            Order[]                  @relation("OrderFarmer")
   products                  Product[]
   productVotes              ProductVote[]
+  promotionRequests         Promotion[]              @relation("PromotionFarmer")
+  reviewedPromotions        Promotion[]              @relation("PromotionReviewer")
   reviewsGiven              Review[]                 @relation("ReviewAuthor")
   reportsGenerated          SalesReport[]
   wishlist                  Wishlist[]
@@ -150,6 +152,7 @@ model Product {
   categoryEntity          Category?                @relation(fields: [categoryId], references: [id])
   farmer                  User                     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   promotions              ProductPromotion[]
+  promotionRequests       Promotion[]
   productViews            ProductView[]
   productVotes            ProductVote[]
   reviews                 Review[]
@@ -454,17 +457,29 @@ model InventoryLog {
 
 model Promotion {
   id                String             @id @default(uuid())
+  farmerId          String?
+  farmer            User?              @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)
+  productId         String?
+  product           Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
   title             String
-  description       String?
+  description       String?            @db.Text
   discountPercent   Int?
   discountAmount    Decimal?           @db.Decimal(12, 2)
   minOrderAmount    Decimal?           @db.Decimal(12, 2)
   startDate         DateTime
   endDate           DateTime
   isActive          Boolean            @default(true)
+  status            PromotionStatus    @default(PENDING)
+  reviewedById      String?
+  reviewedBy        User?              @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?
+  rejectionReason   String?            @db.Text
   createdAt         DateTime           @default(now())
   productPromotions ProductPromotion[]
 
+  @@index([farmerId])
+  @@index([productId])
+  @@index([status])
   @@index([isActive])
   @@index([startDate, endDate])
 }
@@ -637,6 +652,12 @@ enum NotificationType {
 }
 
 enum InventoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PromotionStatus {
   PENDING
   APPROVED
   REJECTED

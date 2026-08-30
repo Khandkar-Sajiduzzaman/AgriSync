@@ -1,0 +1,65 @@
+[1mdiff --git a/backend/prisma/schema.prisma b/backend/prisma/schema.prisma[m
+[1mindex c9b3f31..0898255 100644[m
+[1m--- a/backend/prisma/schema.prisma[m
+[1m+++ b/backend/prisma/schema.prisma[m
+[36m@@ -109,6 +109,12 @@[m [menum InventoryRequestStatus {[m
+   REJECTED[m
+ }[m
+ [m
+[32m+[m[32menum PromotionStatus {[m
+[32m+[m[32m  PENDING[m
+[32m+[m[32m  APPROVED[m
+[32m+[m[32m  REJECTED[m
+[32m+[m[32m}[m
+[32m+[m
+ enum UnitType {[m
+   kg[m
+   gram[m
+[36m@@ -168,6 +174,8 @@[m [mmodel User {[m
+   // --- Relations: Inventory change requests ---[m
+   inventoryRequests        InventoryChangeRequest[] @relation("InventoryRequestFarmer")[m
+   reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")[m
+[32m+[m[32m  promotionRequests        Promotion[] @relation("PromotionFarmer")[m
+[32m+[m[32m  reviewedPromotions       Promotion[] @relation("PromotionReviewer")[m
+ [m
+   // --- Relations: Wishlist & Follow ---[m
+   wishlist      Wishlist[][m
+[36m@@ -368,6 +376,7 @@[m [mmodel Product {[m
+   inventoryLogs   InventoryLog[][m
+   inventoryChangeRequests InventoryChangeRequest[][m
+   promotions      ProductPromotion[][m
+[32m+[m[32m  promotionRequests Promotion[][m
+   productViews    ProductView[][m
+   productVotes    ProductVote[][m
+ [m
+[36m@@ -811,6 +820,10 @@[m [mmodel InventoryLog {[m
+ [m
+ model Promotion {[m
+   id              String   @id @default(uuid())[m
+[32m+[m[32m  farmerId        String?[m
+[32m+[m[32m  farmer          User?    @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)[m
+[32m+[m[32m  productId       String?[m
+[32m+[m[32m  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)[m
+   title           String[m
+   description     String?  @db.Text[m
+   discountPercent Int?     // e.g., 10 for 10% off[m
+[36m@@ -820,11 +833,19 @@[m [mmodel Promotion {[m
+   startDate       DateTime[m
+   endDate         DateTime[m
+   isActive        Boolean  @default(true)[m
+[32m+[m[32m  status          PromotionStatus @default(PENDING)[m
+[32m+[m[32m  reviewedById    String?[m
+[32m+[m[32m  reviewedBy      User?    @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)[m
+[32m+[m[32m  reviewedAt      DateTime?[m
+[32m+[m[32m  rejectionReason String?  @db.Text[m
+ [m
+   createdAt       DateTime @default(now())[m
+ [m
+   productPromotions ProductPromotion[][m
+ [m
+[32m+[m[32m  @@index([farmerId])[m
+[32m+[m[32m  @@index([productId])[m
+[32m+[m[32m  @@index([status])[m
+   @@index([isActive])[m
+   @@index([startDate, endDate])[m
+ }[m
