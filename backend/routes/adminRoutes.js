@@ -11,6 +11,9 @@ const {
   removeProduct,
   restoreProduct,
   getActionLogs,
+  generateSalesReport,
+  getSalesReports,
+  getSalesReportById,
 } = require('../controllers/adminController');
 
 router.use(protect, adminOnly);
@@ -24,5 +27,10 @@ router.put('/products/:id/approve', approveProduct);
 router.put('/products/:id/remove', removeProduct);
 router.put('/products/:id/restore', restoreProduct);
 router.get('/action-logs', getActionLogs);
+
+// Sales Report routes
+router.post('/reports/sales', generateSalesReport);
+router.get('/reports/sales', getSalesReports);
+router.get('/reports/sales/:id', getSalesReportById);
 
 module.exports = router;

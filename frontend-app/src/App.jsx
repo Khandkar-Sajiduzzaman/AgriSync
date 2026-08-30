@@ -38,6 +38,9 @@ import OfferRequestsPage from "./pages/OfferRequestsPage";
 import OfferModeration from "./pages/OfferModeration";
 import OfferNotificationsPage from "./pages/OfferNotificationsPage";
 
+//Report
+import SalesReportPage from "./pages/SalesReportPage";
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState(null);
@@ -190,6 +193,11 @@ function App() {
           element={role === "admin" ? <InventoryManagement /> : <Navigate to="/" replace />}
         />
       </Route>
+      {/* Admin Sales Reports */}
+        <Route
+          path="/sales-reports"
+          element={role === "admin" ? <SalesReportPage /> : <Navigate to="/" replace />}
+        />
       {/* Unknown Routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
