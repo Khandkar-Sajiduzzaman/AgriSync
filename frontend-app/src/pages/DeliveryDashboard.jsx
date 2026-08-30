@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, updateOrderStatus } from "../api/orderApi";
-import { updateDeliveryLocation } from "../api/orderApi";
-import { getDeliveryRequests, respondToDeliveryRequest, getMyActiveDeliveries } from "../api/deliveryApi";
+import { getDeliveryRequests, respondToDeliveryRequest, getMyActiveDeliveries, toggleAvailability } from "../api/deliveryApi";
 
 const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
 
@@ -10,7 +9,9 @@ function DeliveryDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(() => {
+    return localStorage.getItem("locationSharingEnabled") === "true";
+  });
   const [updatingId, setUpdatingId] = useState(null);
 
   // NEW: delivery requests state
@@ -50,44 +51,7 @@ function DeliveryDashboard() {
     loadDeliveryRequests();
   }, []);
 
-  // Send GPS location every 10 seconds while on this page
-  useEffect(() => {
-    if (!locationEnabled) return;
 
-    let watchId;
-    let intervalId;
-
-    const sendLocation = async (position) => {
-      try {
-        await updateDeliveryLocation(position.coords.latitude, position.coords.longitude);
-      } catch (err) {
-        console.log("Location update failed:", err.message);
-      }
-    };
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
-        console.log("Geolocation error:", err.message);
-      });
-
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {},
-        (err) => console.log("Watch error:", err.message),
-        { enableHighAccuracy: true, maximumAge: 10000 }
-      );
-
-      intervalId = setInterval(() => {
-        navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
-          console.log("Interval geolocation error:", err.message);
-        });
-      }, 10000);
-    }
-
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [locationEnabled]);
 
   const handleStatusUpdate = async (orderId, newStatus, notes = "") => {
     setUpdatingId(orderId);
@@ -138,7 +102,16 @@ function DeliveryDashboard() {
           </p>
         </div>
         <button
-          onClick={() => setLocationEnabled(!locationEnabled)}
+          onClick={async () => {
+            const newState = !locationEnabled;
+            setLocationEnabled(newState);
+            localStorage.setItem("locationSharingEnabled", newState.toString());
+            try {
+              await toggleAvailability(newState);
+            } catch (err) {
+              console.log("Failed to toggle availability:", err.message);
+            }
+          }}
           style={{
             padding: "10px 20px",
             background: locationEnabled ? "#dcfce7" : "#fef2f2",
@@ -150,7 +123,7 @@ function DeliveryDashboard() {
             fontWeight: "600",
           }}
         >
-          {locationEnabled ? "📡 Location Sharing ON" : "📡 Location Sharing OFF"}
+          {locationEnabled ? "📡 Location Sharing ON • Available" : "📡 Location Sharing OFF • Offline"}
         </button>
       </div>
 
@@ -330,23 +303,24 @@ function DeliveryDashboard() {
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  <Link to={`/orders/${order._id}`} style={{ textDecoration: "none" }}>
-                    <button
-                      style={{
-                        padding: "8px 16px",
-                        background: "#ffffff",
-                        color: "#374151",
-                        border: "1px solid #d1d5db",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        fontSize: "13px",
-                      }}
-                    >
-                      View Details
-                    </button>
+               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <Link
+                    to={`/orders/${order._id}`}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#ffffff",
+                      color: "#374151",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      textDecoration: "none",
+                      display: "inline-block",
+                    }}
+                  >
+                    View Details
                   </Link>
-
+                  
                   {order.status === "shipped" && (
                     <button
                       onClick={() => handleStatusUpdate(order._id, "out_for_delivery", "Picked up and out for delivery")}

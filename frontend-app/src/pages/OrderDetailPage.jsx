@@ -52,9 +52,16 @@ function OrderDetailPage() {
     loadOrder();
   }, [loadOrder]);
 
-  // Poll for live GPS when order is out_for_delivery
+  // Poll for live GPS based on role and order status
   useEffect(() => {
-    if (!order || order.status !== "out_for_delivery") return;
+    if (!order) return;
+
+    const shouldPoll =
+      (role === "buyer" && ["shipped", "out_for_delivery", "delivered"].includes(order.status)) ||
+      (role === "farmer" && order.deliveryManId && ["awaiting_delivery"].includes(order.status)) ||
+      (role === "delivery_man" && ["awaiting_delivery", "shipped", "out_for_delivery", "delivered"].includes(order.status));
+
+    if (!shouldPoll) return;
 
     let intervalId;
 
@@ -78,7 +85,7 @@ function OrderDetailPage() {
     intervalId = setInterval(pollTracking, 10000);
 
     return () => clearInterval(intervalId);
-  }, [order?.status, id]);
+  }, [order?.status, order?.deliveryManId, id, role]);
 
   const handleStatusUpdate = async (newStatus, notes) => {
     setUpdating(true);
@@ -158,19 +165,47 @@ function OrderDetailPage() {
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px", textAlign: "center" }}>
         <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
         <p style={{ color: "#dc2626" }}>{error}</p>
-        <Link to="/orders">
-          <button style={{ marginTop: "16px", padding: "10px 20px" }}>Back to Orders</button>
+        <Link
+          to={role === "delivery_man" ? "/delivery" : "/orders"}
+          style={{
+            display: "inline-block",
+            marginTop: "16px",
+            padding: "10px 20px",
+            background: "transparent",
+            border: "1px solid #d1d5db",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontSize: "14px",
+            color: "#4b5563",
+            textDecoration: "none",
+          }}
+        >
+          Back to {role === "delivery_man" ? "Delivery Dashboard" : "Orders"}
         </Link>
       </div>
     );
   }
 
-  if (!order) {
+   if (!order) {
     return (
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px", textAlign: "center" }}>
         <p>Order not found.</p>
-        <Link to="/orders">
-          <button style={{ marginTop: "16px" }}>Back to Orders</button>
+        <Link
+          to={role === "delivery_man" ? "/delivery" : "/orders"}
+          style={{
+            display: "inline-block",
+            marginTop: "16px",
+            padding: "10px 20px",
+            background: "transparent",
+            border: "1px solid #d1d5db",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontSize: "14px",
+            color: "#4b5563",
+            textDecoration: "none",
+          }}
+        >
+          Back to {role === "delivery_man" ? "Delivery Dashboard" : "Orders"}
         </Link>
       </div>
     );
@@ -179,27 +214,27 @@ function OrderDetailPage() {
   const status = statusConfig[order.status];
   const currentStepIndex = progressSteps.indexOf(order.status);
   const otherPerson = role === "buyer" ? order.farmer : order.buyer;
-
+  const backPath = role === "delivery_man" ? "/delivery" : "/orders";
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 20px" }}>
-      <Link to="/orders" style={{ textDecoration: "none" }}>
-        <button
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "8px 16px",
-            background: "transparent",
-            border: "1px solid #d1d5db",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "14px",
-            color: "#4b5563",
-            marginBottom: "24px",
-          }}
-        >
-          ← Back to Orders
-        </button>
+      <Link
+        to={backPath}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "8px 16px",
+          background: "transparent",
+          border: "1px solid #d1d5db",
+          borderRadius: "8px",
+          cursor: "pointer",
+          fontSize: "14px",
+          color: "#4b5563",
+          marginBottom: "24px",
+          textDecoration: "none",
+        }}
+      >
+        ← Back to {role === "delivery_man" ? "Delivery Dashboard" : "Orders"}
       </Link>
 
       <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", marginBottom: "24px" }}>
@@ -603,12 +638,16 @@ function OrderDetailPage() {
             )}
           </div>
 
-          {(order.status === "out_for_delivery" || order.status === "shipped" || order.status === "delivered") && (
+          {((role === "farmer" && order.deliveryManId && order.status === "awaiting_delivery") ||
+            (role === "buyer" && ["shipped", "out_for_delivery", "delivered"].includes(order.status)) ||
+            (role === "delivery_man" && ["awaiting_delivery", "shipped", "out_for_delivery", "delivered"].includes(order.status))) && (
             <div style={{ background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
               <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6" }}>
                 <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>
                   📍 Live Tracking
-                  {order.status === "out_for_delivery" && (
+                  {((role === "farmer" && order.deliveryManId && order.status === "awaiting_delivery") ||
+                    (role === "delivery_man" && ["awaiting_delivery", "shipped", "out_for_delivery"].includes(order.status)) ||
+                    (role === "buyer" && order.status === "out_for_delivery")) && (
                     <span style={{ marginLeft: "8px", fontSize: "12px", color: "#10b981", fontWeight: "500" }}>
                       ● Live
                     </span>

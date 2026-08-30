@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { updateDeliveryLocation } from "./api/orderApi";
+import { toggleAvailability } from "./api/deliveryApi";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import AuthForm from "./components/user/AuthForm";
@@ -46,13 +48,55 @@ function App() {
     }
   }, []);
 
-  const handleLogout = () => {
+  // Delivery Man: keep sending GPS location on ALL pages while logged in
+  useEffect(() => {
+    if (!loggedIn || role !== "delivery_man") return;
+    if (localStorage.getItem("locationSharingEnabled") !== "true") return;
+
+    const sendLocation = async (position) => {
+      try {
+        await updateDeliveryLocation(position.coords.latitude, position.coords.longitude);
+      } catch (err) {
+        console.log("Location update failed:", err.message);
+      }
+    };
+
+    // Send once immediately
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
+        console.log("Geolocation error:", err.message);
+      });
+    }
+
+    // Then every 10 seconds
+    const intervalId = setInterval(() => {
+      if (localStorage.getItem("locationSharingEnabled") !== "true") return;
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
+          console.log("Interval geolocation error:", err.message);
+        });
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [loggedIn, role]);
+
+  const handleLogout = async () => {
+    // If delivery man: stop location sharing and mark unavailable in database
+    if (role === "delivery_man") {
+      localStorage.removeItem("locationSharingEnabled");
+      try {
+        await toggleAvailability(false);
+      } catch (err) {
+        console.log("Failed to mark unavailable on logout:", err.message);
+      }
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setLoggedIn(false);
     setRole(null);
   };
-
+  
   const handleAuthSuccess = (data) => {
     setLoggedIn(true);
     setRole(data?.role);
@@ -135,10 +179,10 @@ function App() {
           element={role === "buyer" || role === "farmer" ? <OrdersPage /> : <Navigate to="/delivery" replace />}
         />
 
-        {/* Order Detail (Buyer + Farmer only. Delivery men use /delivery) */}
+        {/* Order Detail (Buyer + Farmer + Delivery Man) */}
         <Route
           path="/orders/:id"
-          element={role === "buyer" || role === "farmer" ? <OrderDetailPage /> : <Navigate to="/delivery" replace />}
+          element={role === "buyer" || role === "farmer" || role === "delivery_man" ? <OrderDetailPage /> : <Navigate to="/" replace />}
         />
         {/* Negotiations (Buyer + Farmer only) */}
         <Route
