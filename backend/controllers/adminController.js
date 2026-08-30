@@ -339,6 +339,156 @@ const getActionLogs = async (req, res) => {
   }
 };
 
+const generateSalesReport = async (req, res) => {
+  try {
+    const { title, period, startDate, endDate } = req.body;
+
+    if (!title || !period || !startDate || !endDate) {
+      return res.status(400).json({ message: "Title, period, startDate, and endDate are required" });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      return res.status(400).json({ message: "Invalid date range" });
+    }
+
+    // Query non-cancelled orders within the time window
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: start, lte: end },
+        status: { notIn: ["cancelled", "refunded"] },
+      },
+      include: {
+        buyer: { select: { id: true, name: true, email: true } },
+        farmer: { select: { id: true, name: true, email: true } },
+        items: {
+          include: {
+            product: { select: { id: true, name: true, legacyCategory: true } },
+          },
+        },
+      },
+    });
+
+    const totalOrders = orders.length;
+    let totalSalesUnits = 0;
+    let totalRevenue = 0;
+    const categoryBreakdown = {};
+    const topProductsMap = {};
+
+    orders.forEach((order) => {
+      totalRevenue += order.totalAmount ? Number(order.totalAmount) : 0;
+
+      order.items.forEach((item) => {
+        totalSalesUnits += item.quantity;
+
+        // Group by category
+        const cat = item.product?.legacyCategory || "Uncategorized";
+        const itemRevenue = item.total ? Number(item.total) : 0;
+        if (!categoryBreakdown[cat]) {
+          categoryBreakdown[cat] = { units: 0, revenue: 0 };
+        }
+        categoryBreakdown[cat].units += item.quantity;
+        categoryBreakdown[cat].revenue += itemRevenue;
+
+        // Group by product
+        const prodName = item.productName || item.product?.name || "Unknown Product";
+        if (!topProductsMap[prodName]) {
+          topProductsMap[prodName] = { units: 0, revenue: 0 };
+        }
+        topProductsMap[prodName].units += item.quantity;
+        topProductsMap[prodName].revenue += itemRevenue;
+      });
+    });
+
+    const reportData = {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      generatedAt: new Date().toISOString(),
+      categoryBreakdown,
+      topProducts: Object.entries(topProductsMap)
+        .map(([name, stats]) => ({ name, ...stats }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10),
+    };
+
+    const newReport = await prisma.salesReport.create({
+      data: {
+        adminId: req.user.id,
+        title: title.trim(),
+        period: period.trim(),
+        totalOrders,
+        totalSales: totalSalesUnits,
+        totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+        data: reportData,
+      },
+      include: {
+        admin: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    res.status(201).json(newReport);
+  } catch (error) {
+    console.error("Generate sales report error:", error);
+    res.status(500).json({ message: "Failed to generate sales report" });
+  }
+};
+
+// Retrieve all generated sales reports
+const getSalesReports = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const [reports, total] = await Promise.all([
+      prisma.salesReport.findMany({
+        include: { admin: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "desc" },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit),
+      }),
+      prisma.salesReport.count(),
+    ]);
+
+    res.json({
+      data: reports.map((r) => ({
+        ...r,
+        _id: r.id,
+        totalRevenue: r.totalRevenue?.toNumber ? r.totalRevenue.toNumber() : Number(r.totalRevenue),
+      })),
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+    });
+  } catch (error) {
+    console.error("Get sales reports error:", error);
+    res.status(500).json({ message: "Failed to fetch sales reports" });
+  }
+};
+
+// Retrieve single sales report by ID
+const getSalesReportById = async (req, res) => {
+  try {
+    const report = await prisma.salesReport.findUnique({
+      where: { id: req.params.id },
+      include: { admin: { select: { id: true, name: true, email: true } } },
+    });
+
+    if (!report) {
+      return res.status(404).json({ message: "Sales report not found" });
+    }
+
+    res.json({
+      ...report,
+      _id: report.id,
+      totalRevenue: report.totalRevenue?.toNumber ? report.totalRevenue.toNumber() : Number(report.totalRevenue),
+    });
+  } catch (error) {
+    console.error("Get sales report by ID error:", error);
+    res.status(500).json({ message: "Failed to fetch sales report" });
+  }
+};
+
 module.exports = {
   getStats,
   getAllUsers,
@@ -349,4 +499,7 @@ module.exports = {
   removeProduct,
   restoreProduct,
   getActionLogs,
+  generateSalesReport,
+  getSalesReports,
+  getSalesReportById,
 };

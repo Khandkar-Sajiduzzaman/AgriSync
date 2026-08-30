@@ -177,7 +177,7 @@ function Navbar({ onLogout }) {
           </Link>
         )}
 
-        {role === "admin" && (
+{role === "admin" && (
           <>
             <Link className={active("/inventory-management")} to="/inventory-management">
               <FaBoxOpen /> Inventory
@@ -189,6 +189,10 @@ function Navbar({ onLogout }) {
 
             <Link className={active("/offer-moderation")} to="/offer-moderation">
               <FaBullhorn /> Offer Moderation
+            </Link>
+
+            <Link className={active("/sales-reports")} to="/sales-reports">
+              <FaClipboardList /> Sales Reports
             </Link>
           </>
         )}
