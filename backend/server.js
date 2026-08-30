@@ -6,6 +6,7 @@ const cors = require("cors");
 const path = require("path");
 const deliveryRoutes = require("./routes/deliveryRoutes");
 const deliveryZoneRoutes = require("./routes/deliveryZoneRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const userRoutes = require("./routes/userRoutes");
 const productRoutes = require("./routes/productRoutes");
@@ -48,6 +49,7 @@ app.use("/api/delivery", deliveryRoutes);
 app.use("/api/delivery-zones", deliveryZoneRoutes);
 app.use("/api/comparisons", comparisonRoutes);
 app.use('/api/negotiations', negotiationRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check — visit http://localhost:5000/ to confirm backend is alive
 app.get("/", (req, res) => {

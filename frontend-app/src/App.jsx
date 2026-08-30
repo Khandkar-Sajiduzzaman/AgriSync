@@ -14,6 +14,7 @@ import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
 import ComparePage from "./pages/ComparePage";
 import ReviewModeration from "./pages/ReviewModeration";
+import AdminDashboard from "./pages/AdminDashboard";
 // NEW PAGES for Place Order feature
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -83,6 +84,11 @@ function App() {
         <Route
           path="/review-moderation"
           element={role === "admin" ? <ReviewModeration /> : <Navigate to="/" replace />}
+        />
+        {/* Admin Panel */}
+        <Route
+          path="/admin"
+          element={role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
         />
         {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />
