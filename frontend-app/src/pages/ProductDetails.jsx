@@ -1,4 +1,18 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createOffer } from "../api/negotiationApi";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter
+} from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 import { getProduct, recordProductView } from "../api/productApi";
 import { getWishlist, toggleWishlist, getFollowedFarmers, toggleFollowFarmer } from "../api/userApi";
@@ -30,6 +44,39 @@ function ProductDetails() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
   const role = JSON.parse(localStorage.getItem("user"))?.role;
+  const [offerPrice, setOfferPrice] = useState("");
+  const [offerMessage, setOfferMessage] = useState("");
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleMakeOffer = async (e) => {
+    e.preventDefault();
+    if (!offerPrice || isNaN(offerPrice)) {
+      toast.error("Please enter a valid price.");
+      return;
+    }
+    
+    setIsSubmittingOffer(true);
+    try {
+      await createOffer({
+        productId: product._id, 
+        offerPrice: Number(offerPrice),
+        message: offerMessage
+      });
+      
+      toast.success("Offer submitted! The clock is ticking.");
+      setIsModalOpen(false);
+      setOfferPrice("");
+      setOfferMessage("");
+      navigate("/negotiations");
+    } catch (err) {
+      toast.error(err.message || "Failed to submit offer.");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+  
   const { toggleCompare, isComparing, isFull } = useCompare();
 
   useEffect(() => {
@@ -273,7 +320,7 @@ function ProductDetails() {
             )}
 
           {role === "buyer" && (
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
               <button
                 onClick={() => toggleCompare(product._id)}
                 disabled={!isComparing(product._id) && isFull}
@@ -318,6 +365,51 @@ function ProductDetails() {
               >
                 {isFollowing ? "Following ✓" : "Follow Farmer"}
               </button>
+
+              {/* NEGOTIATION MODAL */}
+              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-50 font-bold ml-auto">
+                    Negotiate Price
+                  </Button>
+                </DialogTrigger>
+                
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-agri-900">Make an Offer</DialogTitle>
+                  </DialogHeader>
+                  
+                  <form onSubmit={handleMakeOffer} className="space-y-4 mt-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-stone-700">Your Price (৳)</label>
+                      <Input 
+                        type="number" 
+                        placeholder={`Current price: ৳${product.price}`}
+                        value={offerPrice}
+                        onChange={(e) => setOfferPrice(e.target.value)}
+                        required
+                        min="1"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-stone-700">Message to Farmer</label>
+                      <Textarea 
+                        placeholder="e.g. I need 20kg for a restaurant, can you do this price?"
+                        value={offerMessage}
+                        onChange={(e) => setOfferMessage(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                    
+                    <DialogFooter className="mt-6">
+                      <Button type="submit" disabled={isSubmittingOffer} className="w-full bg-agri-700 hover:bg-agri-800 text-white">
+                        {isSubmittingOffer ? "Sending..." : "Submit Offer (24h Limit)"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
         </div>

@@ -1,28 +1,3 @@
-// =============================================================================
-// AgriSync Prisma Schema — PostgreSQL (Supabase)
-// =============================================================================
-// Cross-referenced against:
-//   - Repository frontend (React components, API calls, form fields)
-//   - Repository backend-old-mongodb (Mongoose models, controllers, routes)
-//   - Project plan PDF (all 4 sprints)
-//   - Class diagram PDF (all entities, relations, methods)
-//
-// API COMPATIBILITY NOTES:
-//   1. The old MongoDB backend uses `_id` fields. PostgreSQL/Prisma uses `id`.
-//      Your NEW backend controllers should map `id` → `_id` in JSON responses
-//      so the existing frontend keeps working without changes.
-//      Example: res.json({ ...product, _id: product.id })
-//
-//   2. The frontend sends/receives `category` as a free-text string.
-//      This schema stores it in `legacyCategory`. Your API should read
-//      `req.body.category` and write it to `legacyCategory`, and expose
-//      `legacyCategory` as `category` in responses.
-//
-//   3. Prisma Decimal fields return as Decimal objects, not plain numbers.
-//      Convert before JSON serialization: product.price.toNumber()
-//
-// =============================================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -30,12 +5,585 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // Required for Prisma migrations (bypasses Supabase pooler)
+  directUrl = env("DIRECT_URL")
 }
 
-// =============================================================================
-// ENUMS
-// =============================================================================
+model User {
+  id                        String                   @id @default(uuid())
+  email                     String                   @unique
+  password                  String
+  name                      String
+  role                      Role
+  accountStatus             AccountStatus            @default(active)
+  phone                     String?
+  address                   String?
+  bio                       String?
+  profileImage              String?
+  latitude                  Float?
+  longitude                 Float?
+  division                  String?
+  district                  String?
+  upazila                   String?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  adminActions              AdminActionLog[]
+  buyerProfile              BuyerProfile?
+  cartItems                 CartItem[]
+  deliveryManProfile        DeliveryManProfile?
+  DeliveryRequest           DeliveryRequest[]
+  farmerProfile              FarmerProfile?
+  following                 Follow[]                 @relation("UserFollowing")
+  followers                 Follow[]                 @relation("UserFollowers")
+  inventoryRequests         InventoryChangeRequest[] @relation("InventoryRequestFarmer")
+  reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")
+  messagesReceived          Message[]                @relation("MessageReceiver")
+  messagesSent              Message[]                @relation("MessageSender")
+  negotiationsAsBuyer       Negotiation[]            @relation("NegotiationBuyer")
+  negotiationsAsFarmer      Negotiation[]            @relation("NegotiationFarmer")
+  notifications             Notification[]
+  ordersAsBuyer             Order[]                  @relation("OrderBuyer")
+  assignedDeliveries        Order[]                  @relation("OrderDeliveryMan")
+  ordersAsFarmer            Order[]                  @relation("OrderFarmer")
+  products                  Product[]
+  productVotes              ProductVote[]
+  promotionRequests         Promotion[]              @relation("PromotionFarmer")
+  reviewedPromotions        Promotion[]              @relation("PromotionReviewer")
+  reviewsGiven              Review[]                 @relation("ReviewAuthor")
+  reportsGenerated          SalesReport[]
+  wishlist                  Wishlist[]
+
+  @@index([email])
+  @@index([role])
+  @@index([accountStatus])
+  @@index([division, district])
+}
+
+model FarmerProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  farmName           String?
+  farmLocation       String?
+  farmDescription    String?
+  farmLatitude       Float?
+  farmLongitude      Float?
+  averageRating      Float              @default(0)
+  totalReviews       Int                @default(0)
+  verificationStatus VerificationStatus @default(unverified)
+  verificationDocUrl String?
+  idCardUrl          String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deliveryZones      DeliveryZone[]
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([verificationStatus])
+}
+
+model BuyerProfile {
+  id           String  @id @default(uuid())
+  userId       String  @unique
+  rewardPoints Int     @default(0)
+  location     String?
+  latitude     Float?
+  longitude    Float?
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryManProfile {
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  vehicleType        String?
+  licenseNumber      String?
+  currentLatitude    Float?
+  currentLongitude   Float?
+  lastLocationUpdate DateTime?
+  isAvailable        Boolean   @default(true)
+  preferredAreas     String[]
+  maxOrders          Int       @default(3)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  slug         String        @unique
+  description  String?
+  imageUrl     String?
+  parentId     String?
+  createdAt    DateTime      @default(now())
+  parent       Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     Category[]    @relation("CategoryHierarchy")
+  marketPrices MarketPrice[]
+  products     Product[]
+
+  @@index([slug])
+}
+
+model Product {
+  id                      String                   @id @default(uuid())
+  name                    String
+  description             String?
+  price                   Decimal                  @db.Decimal(12, 2)
+  stock                   Int                      @default(0)
+  unit                    UnitType                 @default(kg)
+  categoryId              String?
+  legacyCategory          String?
+  origin                  String?
+  originDetails           String?
+  nutritionInfo           String?
+  images                  String[]
+  isAvailable             Boolean                  @default(true)
+  isApproved              Boolean                  @default(true)
+  approvedAt              DateTime?
+  approvedBy              String?
+  isRemoved               Boolean                  @default(false)
+  removalReason           String?
+  averageRating           Float                    @default(0)
+  totalReviews            Int                      @default(0)
+  totalVotes              Int                      @default(0)
+  farmerId                String
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  cartItems               CartItem[]
+  inventoryChangeRequests InventoryChangeRequest[]
+  inventoryLogs           InventoryLog[]
+  negotiations            Negotiation[]
+  orderItems              OrderItem[]
+  categoryEntity          Category?                @relation(fields: [categoryId], references: [id])
+  farmer                  User                     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  promotions              ProductPromotion[]
+  promotionRequests       Promotion[]
+  productViews            ProductView[]
+  productVotes            ProductVote[]
+  reviews                 Review[]
+  wishlistedBy            Wishlist[]
+
+  @@index([farmerId])
+  @@index([legacyCategory])
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@index([isApproved])
+  @@index([averageRating])
+  @@index([createdAt])
+  @@index([price])
+}
+
+model ProductVote {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  value     Int
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model Wishlist {
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model Order {
+  id                String               @id @default(uuid())
+  orderNumber       String               @unique
+  buyerId           String
+  farmerId          String
+  status            OrderStatus          @default(pending)
+  paymentStatus     PaymentStatus        @default(pending)
+  paymentMethod     PaymentMethod        @default(cash_on_delivery)
+  subtotal          Decimal              @db.Decimal(12, 2)
+  totalAmount       Decimal              @db.Decimal(12, 2)
+  deliveryFee       Decimal?             @db.Decimal(12, 2)
+  discountAmount    Decimal?             @db.Decimal(12, 2)
+  deliveryAddress   String
+  deliveryNotes     String?
+  cancelledAt       DateTime?
+  cancelledBy       String?
+  deliveryManId     String?
+  estimatedDelivery DateTime?
+  deliveredAt       DateTime?
+  deliveryType      DeliveryType         @default(normal)
+  deliveryCity      String?
+  deliveryArea      String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  DeliveryRequest   DeliveryRequest[]
+  trackingUpdates   DeliveryTracking[]
+  buyer             User                 @relation("OrderBuyer", fields: [buyerId], references: [id])
+  deliveryMan       User?                @relation("OrderDeliveryMan", fields: [deliveryManId], references: [id])
+  farmer            User                 @relation("OrderFarmer", fields: [farmerId], references: [id])
+  items             OrderItem[]
+  statusHistory     OrderStatusHistory[]
+  reviews           Review[]
+
+  @@index([buyerId])
+  @@index([farmerId])
+  @@index([deliveryManId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
+  unit        UnitType @default(kg)
+  productName String?
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  status    OrderStatus
+  notes     String?
+  changedBy String?
+  createdAt DateTime    @default(now())
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model DeliveryTracking {
+  id        String   @id @default(uuid())
+  orderId   String
+  latitude  Float
+  longitude Float
+  status    String?
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model DeliveryZone {
+  id        String        @id @default(uuid())
+  farmerId  String
+  name      String
+  location  String?
+  latitude  Float?
+  longitude Float?
+  radiusKm  Float?
+  createdAt DateTime      @default(now())
+  farmer    FarmerProfile @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@index([farmerId])
+}
+
+model Review {
+  id                 String           @id @default(uuid())
+  rating             Int              @db.SmallInt
+  comment            String?
+  authorId           String
+  productId          String
+  orderId            String
+  isVerifiedPurchase Boolean          @default(false)
+  isFlagged          Boolean          @default(false)
+  fraudScore         Float?
+  fraudReasons       String[]
+  moderationStatus   ModerationStatus @default(pending)
+  moderatedById      String?
+  moderatedAt        DateTime?
+  moderationNote     String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  author             User             @relation("ReviewAuthor", fields: [authorId], references: [id])
+  order              Order            @relation(fields: [orderId], references: [id])
+  product            Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, productId, orderId])
+  @@index([productId])
+  @@index([authorId])
+  @@index([orderId])
+  @@index([createdAt])
+  @@index([isFlagged])
+  @@index([moderationStatus])
+}
+
+model Negotiation {
+  id           String               @id @default(uuid())
+  productId    String
+  buyerId      String
+  farmerId     String
+  offerPrice   Decimal              @db.Decimal(12, 2)
+  status       NegotiationStatus    @default(pending)
+  counterPrice Decimal?             @db.Decimal(12, 2)
+  message      String?
+  expiresAt    DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  buyer        User                 @relation("NegotiationBuyer", fields: [buyerId], references: [id])
+  farmer       User                 @relation("NegotiationFarmer", fields: [farmerId], references: [id])
+  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  history      NegotiationHistory[]
+
+  @@index([productId])
+  @@index([buyerId])
+  @@index([farmerId])
+  @@index([status])
+}
+
+model NegotiationHistory {
+  id            String      @id @default(uuid())
+  negotiationId String
+  senderId      String
+  offerPrice    Decimal     @db.Decimal(12, 2)
+  message       String?
+  createdAt     DateTime    @default(now())
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+
+  @@index([negotiationId])
+  @@index([createdAt])
+}
+
+model Message {
+  id            String   @id @default(uuid())
+  content       String
+  isRead        Boolean  @default(false)
+  attachmentUrl String?
+  senderId      String
+  receiverId    String
+  productId     String?
+  orderId       String?
+  createdAt     DateTime @default(now())
+  receiver      User     @relation("MessageReceiver", fields: [receiverId], references: [id])
+  sender        User     @relation("MessageSender", fields: [senderId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model InventoryChangeRequest {
+  id              String                 @id @default(uuid())
+  farmerId        String
+  productId       String
+  currentStock    Int
+  requestedStock  Int
+  reason          String
+  status          InventoryRequestStatus @default(PENDING)
+  reviewedById    String?
+  rejectionReason String?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  farmer          User                   @relation("InventoryRequestFarmer", fields: [farmerId], references: [id], onDelete: Cascade)
+  product         Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reviewedBy      User?                  @relation("InventoryRequestReviewer", fields: [reviewedById], references: [id])
+
+  @@index([farmerId])
+  @@index([productId])
+  @@index([status])
+}
+
+model InventoryLog {
+  id        String   @id @default(uuid())
+  productId String
+  oldStock  Int
+  newStock  Int
+  change    Int
+  reason    String?
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model Promotion {
+  id                String             @id @default(uuid())
+  farmerId          String?
+  farmer            User?              @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)
+  productId         String?
+  product           Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  title             String
+  description       String?            @db.Text
+  discountPercent   Int?
+  discountAmount    Decimal?           @db.Decimal(12, 2)
+  minOrderAmount    Decimal?           @db.Decimal(12, 2)
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean            @default(true)
+  status            PromotionStatus    @default(PENDING)
+  reviewedById      String?
+  reviewedBy        User?              @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?
+  rejectionReason   String?            @db.Text
+  createdAt         DateTime           @default(now())
+  productPromotions ProductPromotion[]
+
+  @@index([farmerId])
+  @@index([productId])
+  @@index([status])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model ProductPromotion {
+  id          String    @id @default(uuid())
+  productId   String
+  promotionId String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, promotionId])
+}
+
+model ProductComparison {
+  id        String           @id @default(uuid())
+  buyerId   String
+  name      String?
+  createdAt DateTime         @default(now())
+  items     ComparisonItem[]
+}
+
+model ComparisonItem {
+  id           String            @id @default(uuid())
+  comparisonId String
+  productId    String
+  comparison   ProductComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+
+  @@unique([comparisonId, productId])
+}
+
+model ProductView {
+  id        String   @id @default(uuid())
+  buyerId   String
+  productId String
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model MarketPrice {
+  id           String   @id @default(uuid())
+  categoryId   String
+  averagePrice Decimal  @db.Decimal(12, 2)
+  minPrice     Decimal  @db.Decimal(12, 2)
+  maxPrice     Decimal  @db.Decimal(12, 2)
+  sampleSize   Int
+  date         DateTime
+  createdAt    DateTime @default(now())
+  category     Category @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
+  @@index([date])
+}
+
+model SalesReport {
+  id           String   @id @default(uuid())
+  adminId      String
+  title        String
+  period       String
+  totalOrders  Int
+  totalSales   Int
+  totalRevenue Decimal  @db.Decimal(12, 2)
+  data         Json?
+  createdAt    DateTime @default(now())
+  admin        User     @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([period])
+}
+
+model AdminActionLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  reason     String?
+  createdAt  DateTime @default(now())
+  admin      User     @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+model DeliveryRequest {
+  id            String                @id
+  orderId       String
+  deliveryManId String
+  status        DeliveryRequestStatus @default(pending)
+  requestType   DeliveryType
+  message       String?
+  createdAt     DateTime              @default(now())
+  respondedAt   DateTime?
+  User          User                  @relation(fields: [deliveryManId], references: [id], onDelete: Cascade)
+  Order         Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryManId, status])
+  @@index([orderId])
+}
 
 enum Role {
   buyer
@@ -44,7 +592,6 @@ enum Role {
   admin
 }
 
-
 enum AccountStatus {
   active
   suspended
@@ -52,14 +599,15 @@ enum AccountStatus {
 }
 
 enum OrderStatus {
-  pending          // Buyer placed order, waiting farmer confirmation
-  confirmed        // Farmer accepted the order
-  processing       // Farmer is preparing the items
-  shipped          // Items handed to delivery man
-  out_for_delivery // Delivery man is on the way
-  delivered        // Buyer received the items
-  cancelled        // Cancelled by buyer or farmer
-  refunded         // Payment refunded
+  pending
+  confirmed
+  processing
+  awaiting_delivery
+  shipped
+  out_for_delivery
+  delivered
+  cancelled
+  refunded
 }
 
 enum PaymentStatus {
@@ -125,856 +673,24 @@ enum UnitType {
   bag
   box
 }
+
 enum ModerationStatus {
   pending
   approved
   rejected
 }
 
-// =============================================================================
-// USER & ROLE PROFILES
-// =============================================================================
-// Single User table with role enum + separate profile tables for each role.
-// This is the Prisma way of handling inheritance (class table inheritance).
-// Matches the class diagram: User is the base; Admin, Buyer, Farmer,
-// DeliveryMan are specializations.
-// =============================================================================
-
-model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
-  password      String        // Hashed with bcrypt — NEVER store plain text
-  name          String
-  role          Role
-  accountStatus AccountStatus @default(active)
-
-  phone         String?
-  address       String?
-  bio           String?       @db.Text
-  profileImage  String?       // URL to image stored in Supabase Storage or local /uploads/
-
-  // Location fields for "nearby farmers" and delivery zone matching
-  latitude      Float?
-  longitude     Float?
-  division      String?       // e.g., "Dhaka"
-  district      String?       // e.g., "Gazipur"
-  upazila       String?       // e.g., "Sreepur"
-
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  // --- Role-specific profiles (one-to-one, only the matching role has a record) ---
-  farmerProfile      FarmerProfile?
-  buyerProfile       BuyerProfile?
-  deliveryManProfile DeliveryManProfile?
-
-  // --- Relations: Products (farmer creates products) ---
-  products      Product[]   // Products this farmer created
-
-  // --- Relations: Inventory change requests ---
-  inventoryRequests        InventoryChangeRequest[] @relation("InventoryRequestFarmer")
-  reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")
-  promotionRequests        Promotion[] @relation("PromotionFarmer")
-  reviewedPromotions       Promotion[] @relation("PromotionReviewer")
-
-  // --- Relations: Wishlist & Follow ---
-  wishlist      Wishlist[]
-  following     Follow[]    @relation("UserFollowing")
-  followers     Follow[]    @relation("UserFollowers")
-
-  // --- Relations: Orders ---
-  ordersAsBuyer   Order[]   @relation("OrderBuyer")
-  ordersAsFarmer  Order[]   @relation("OrderFarmer")
-
-  // --- Relations: Delivery ---
-  assignedDeliveries Order[] @relation("OrderDeliveryMan")
-
-  // --- Relations: Chat ---
-  messagesSent     Message[] @relation("MessageSender")
-  messagesReceived Message[] @relation("MessageReceiver")
-
-  // --- Relations: Reviews ---
-  reviewsGiven     Review[]  @relation("ReviewAuthor")
-
-  // --- Relations: Negotiation ---
-  negotiationsAsBuyer  Negotiation[] @relation("NegotiationBuyer")
-  negotiationsAsFarmer Negotiation[] @relation("NegotiationFarmer")
-
-  // --- Relations: Notifications ---
-  notifications    Notification[]
-
-  // --- Relations: Cart ---
-  cartItems        CartItem[]
-
-  // --- Relations: Product Votes ---
-  productVotes     ProductVote[]
-
-  // --- Relations: Admin ---
-  adminActions     AdminActionLog[]
-  reportsGenerated SalesReport[]
-
-  @@index([email])
-  @@index([role])
-  @@index([accountStatus])
-  @@index([division, district])
+enum DeliveryRequestStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+  expired
 }
 
-// ---------------------------------------------------------------------------
-// Farmer Profile — extra data only for users with role = farmer
-// Matches class diagram: farmName, farmLocation, farmDescription,
-// averageRating, verificationStatus
-// ---------------------------------------------------------------------------
-model FarmerProfile {
-  id                  String             @id @default(uuid())
-  userId              String             @unique
-  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  farmName            String?
-  farmLocation        String?
-  farmDescription     String?            @db.Text
-  farmLatitude        Float?
-  farmLongitude       Float?
-
-  averageRating       Float              @default(0)
-  totalReviews        Int                @default(0)
-  verificationStatus  VerificationStatus @default(unverified)
-  verificationDocUrl  String?            // KYC / ID document image
-  idCardUrl           String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // A farmer can define multiple delivery zones
-  deliveryZones DeliveryZone[]
-
-  @@index([verificationStatus])
-}
-
-// ---------------------------------------------------------------------------
-// Buyer Profile — extra data only for users with role = buyer
-// Matches class diagram: rewardPoints, location
-// ---------------------------------------------------------------------------
-model BuyerProfile {
-  id           String  @id @default(uuid())
-  userId       String  @unique
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  rewardPoints Int     @default(0)
-  location     String?
-  latitude     Float?
-  longitude    Float?
-}
-
-// ---------------------------------------------------------------------------
-// Delivery Man Profile — extra data only for users with role = delivery_man
-// Matches class diagram: location (current), delivery status
-// ---------------------------------------------------------------------------
-model DeliveryManProfile {
-  id               String  @id @default(uuid())
-  userId           String  @unique
-  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  vehicleType      String? // e.g., "Motorcycle", "Van", "Truck"
-  licenseNumber    String?
-  currentLatitude  Float?
-  currentLongitude Float?
-  isAvailable      Boolean @default(true)
-}
-
-// =============================================================================
-// CATEGORY
-// =============================================================================
-// Replaces free-text category with a proper taxonomy.
-// Supports sub-categories via self-relation (parent/children).
-// For NOW the frontend still sends free-text `category` — store that in
-// Product.legacyCategory. When you migrate to structured categories, use
-// Product.categoryId instead.
-// =============================================================================
-
-model Category {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  slug        String    @unique // URL-friendly name, e.g., "fresh-vegetables"
-  description String?   @db.Text
-  imageUrl    String?
-
-  parentId    String?
-  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryHierarchy")
-
-  createdAt   DateTime  @default(now())
-
-  products    Product[]
-  marketPrices MarketPrice[]
-
-  @@index([slug])
-}
-
-// =============================================================================
-// PRODUCT
-// =============================================================================
-// Core marketplace item. Includes traceability fields for Sprint 3.
-//
-// BACKWARD COMPAT:
-//   - old backend stored: name, description, category (string), price (Number),
-//     stock (Number), images (String[]), farmer (ObjectId ref)
-//   - new schema keeps all of these, adding future-proof fields.
-// =============================================================================
-
-model Product {
-  id              String    @id @default(uuid())
-  name            String
-  description     String?   @db.Text
-  price           Decimal   @db.Decimal(12, 2)
-  stock           Int       @default(0)
-  unit            UnitType  @default(kg)
-
-  // Structured category (future use). For now, API reads/writes legacyCategory.
-  categoryId      String?
-  categoryEntity  Category? @relation(fields: [categoryId], references: [id])
-
-  // Free-text category (current frontend sends this as `category`)
-  legacyCategory  String?
-
-  // --- Traceability fields (Sprint 3) ---
-  origin          String?   // e.g., "Rajshahi, Bangladesh"
-  originDetails   String?   @db.Text // Production method, harvest date, etc.
-  nutritionInfo   String?   @db.Text // JSON string or plain text
-
-  images          String[]  // PostgreSQL array of image URLs/paths
-  isAvailable     Boolean   @default(true)   // Farmer can soft-disable
-
-  // Admin approval. Default TRUE so current frontend works without admin logic.
-  // When Sprint 4 admin panel is built, set this to false for new products
-  // and have admins explicitly approve them.
-  isApproved      Boolean   @default(true)
-  approvedAt      DateTime?
-  approvedBy      String?   // Admin user ID
-
-  // Removed by admin (soft delete)
-  isRemoved       Boolean   @default(false)
-  removalReason   String?   @db.Text
-
-  // Rating aggregates (updated when reviews are added)
-  averageRating   Float     @default(0)
-  totalReviews    Int       @default(0)
-  totalVotes      Int       @default(0) // Upvotes from buyers (class diagram: votes)
-
-  // Every product belongs to one farmer
-  farmerId        String
-  farmer          User      @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // --- Relations ---
-  wishlistedBy    Wishlist[]
-  orderItems      OrderItem[]
-  reviews         Review[]
-  cartItems       CartItem[]
-  negotiations    Negotiation[]
-  inventoryLogs   InventoryLog[]
-  inventoryChangeRequests InventoryChangeRequest[]
-  promotions      ProductPromotion[]
-  promotionRequests Promotion[]
-  productViews    ProductView[]
-  productVotes    ProductVote[]
-
-  @@index([farmerId])
-  @@index([legacyCategory])
-  @@index([categoryId])
-  @@index([isAvailable])
-  @@index([isApproved])
-  @@index([averageRating])
-  @@index([createdAt])
-  @@index([price])
-}
-
-// =============================================================================
-// PRODUCT VOTE (Class diagram: Product.votes)
-// =============================================================================
-// Buyers can upvote/downvote products. Separate from reviews.
-// =============================================================================
-
-model ProductVote {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  value     Int      // +1 for upvote, -1 for downvote
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, productId]) // One vote per user per product
-  @@index([productId])
-}
-
-// =============================================================================
-// WISHLIST (Many-to-Many: Buyer saves Products)
-// =============================================================================
-// Old MongoDB stored this as an array of ObjectIds on the User document.
-// PostgreSQL uses a junction table — cleaner and more queryable.
-// =============================================================================
-
-model Wishlist {
-  userId    String
-  productId String
-  createdAt DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@id([userId, productId])
-  @@index([userId])
-  @@index([productId])
-}
-
-// =============================================================================
-// FOLLOW (Self-referential Many-to-Many: Buyer follows Farmer)
-// =============================================================================
-// Old MongoDB stored this as `favoriteFarmers` array on the User document.
-// =============================================================================
-
-model Follow {
-  followerId  String // The buyer
-  followingId String // The farmer
-  createdAt   DateTime @default(now())
-
-  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
-  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@id([followerId, followingId])
-  @@index([followerId])
-  @@index([followingId])
-}
-
-// =============================================================================
-// CART (Buyers add items before placing an order)
-// =============================================================================
-
-model CartItem {
-  id        String @id @default(uuid())
-  userId    String
-  productId String
-  quantity  Int    @default(1)
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, productId]) // One cart entry per product per buyer
-  @@index([userId])
-  @@index([userId, createdAt])
-}
-
-// =============================================================================
-// ORDER & ORDER ITEMS
-// =============================================================================
-// An order is always between ONE buyer and ONE farmer.
-// If a buyer wants items from 3 farmers, they place 3 separate orders.
-// This matches the class diagram: Buyer 1→* Order, Farmer 1→* Order.
-// =============================================================================
-
-model Order {
-  id              String        @id @default(uuid())
-  orderNumber     String        @unique
-
-  buyerId         String
-  buyer           User          @relation("OrderBuyer", fields: [buyerId], references: [id])
-  farmerId        String
-  farmer          User          @relation("OrderFarmer", fields: [farmerId], references: [id])
-
-  status          OrderStatus   @default(pending)
-  paymentStatus   PaymentStatus @default(pending)
-  paymentMethod   PaymentMethod @default(cash_on_delivery)
-
-  subtotal        Decimal       @db.Decimal(12, 2)  // NEW: items total before fees
-  totalAmount     Decimal       @db.Decimal(12, 2)
-  deliveryFee     Decimal?      @db.Decimal(12, 2)
-  discountAmount  Decimal?      @db.Decimal(12, 2)
-
-  deliveryAddress String
-  deliveryNotes   String?
-
-  // NEW FIELDS — for cancelled order tracking
-  cancelledAt     DateTime?
-  cancelledBy     String?
-
-  // Delivery assignment
-  deliveryManId   String?
-  deliveryMan     User?         @relation("OrderDeliveryMan", fields: [deliveryManId], references: [id])
-
-  estimatedDelivery DateTime?
-  deliveredAt       DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  items           OrderItem[]
-  statusHistory   OrderStatusHistory[]
-  reviews         Review[]
-  trackingUpdates DeliveryTracking[]
-
-  @@index([buyerId])
-  @@index([farmerId])
-  @@index([deliveryManId])
-  @@index([status])
-  @@index([orderNumber])
-  @@index([createdAt])
-}
-
-model OrderItem {
-  id          String   @id @default(uuid())
-  orderId     String
-  productId   String
-  quantity    Int
-  unitPrice   Decimal  @db.Decimal(12, 2)
-  total       Decimal  @db.Decimal(12, 2)
-
-  // NEW FIELDS — store snapshot at time of purchase
-  unit        UnitType @default(kg)
-  productName String?  // Product name at order time (in case renamed later)
-
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product  @relation(fields: [productId], references: [id])
-
-  @@index([orderId])
-  @@index([productId])
-}
-
-// ---------------------------------------------------------------------------
-// Order Status History — full audit trail of every status change
-// Powers the "real-time order tracking" requirement from Sprint 2.
-// ---------------------------------------------------------------------------
-model OrderStatusHistory {
-  id        String      @id @default(uuid())
-  orderId   String
-  status    OrderStatus
-  notes     String?     // e.g., "Farmer confirmed stock availability"
-  changedBy String?     // User ID who made the change
-
-  createdAt DateTime    @default(now())
-
-  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([orderId])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// DELIVERY TRACKING (Live location updates for an order)
-// =============================================================================
-// Matches class diagram trackOrder() and Sprint 2 "real-time tracking".
-// =============================================================================
-
-model DeliveryTracking {
-  id        String   @id @default(uuid())
-  orderId   String
-  latitude  Float
-  longitude Float
-  status    String?  // e.g., "moving", "stopped", "delivered"
-
-  createdAt DateTime @default(now())
-
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([orderId])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// DELIVERY ZONE (Areas where a farmer delivers)
-// =============================================================================
-// Matches class diagram: DeliveryZone with zoneID, location.
-// Sprint 2: "farmers define the areas where they provide delivery services"
-// =============================================================================
-
-model DeliveryZone {
-  id          String        @id @default(uuid())
-  farmerId    String
-  farmer      FarmerProfile @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-
-  name        String        // e.g., "Gazipur City", "Dhaka North"
-  location    String?       // Human-readable address
-  latitude    Float?        // Center point
-  longitude   Float?
-  radiusKm    Float?        // Delivery radius from center
-
-  createdAt   DateTime      @default(now())
-
-  @@index([farmerId])
-}
-
-// =============================================================================
-// REVIEW & RATING (Sprint 3) — ENHANCED with Fraud Detection
-// =============================================================================
-// Buyers can only review products they have ordered (verified purchase).
-// Includes fraud detection fields and admin moderation support.
-// =============================================================================
-
-model Review {
-  id              String  @id @default(uuid())
-  rating          Int     @db.SmallInt // 1–5 stars
-  comment         String? @db.Text
-
-  authorId        String
-  author          User    @relation("ReviewAuthor", fields: [authorId], references: [id])
-
-  productId       String
-  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  orderId         String
-  order           Order   @relation(fields: [orderId], references: [id])
-
-  // --- Fraud detection ---
-  isVerifiedPurchase Boolean @default(false)
-  isFlagged          Boolean @default(false)
-  fraudScore         Float?
-  fraudReasons       String[] // Array of reason codes: ["extreme_rating", "short_comment", "duplicate_content", "rapid_reviews", "bot_pattern"]
-
-  // --- Admin moderation ---
-  moderationStatus   ModerationStatus @default(pending) // pending, approved, rejected
-  moderatedById      String?
-  moderatedAt        DateTime?
-  moderationNote     String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([productId])
-  @@index([authorId])
-  @@index([orderId])
-  @@index([createdAt])
-  @@index([isFlagged])
-  @@index([moderationStatus])
-  @@unique([authorId, productId, orderId])
-}
-
-
-
-// =============================================================================
-// NEGOTIATION (Sprint 3 — Buyer offers a price, Farmer responds)
-// =============================================================================
-// Matches class diagram: Negotiation with offerPrice, status, history (array).
-// The NegotiationHistory table stores the back-and-forth messages.
-// =============================================================================
-
-model Negotiation {
-  id           String            @id @default(uuid())
-  productId    String
-  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  buyerId      String
-  buyer        User              @relation("NegotiationBuyer", fields: [buyerId], references: [id])
-
-  farmerId     String
-  farmer       User              @relation("NegotiationFarmer", fields: [farmerId], references: [id])
-
-  offerPrice   Decimal           @db.Decimal(12, 2) // Buyer's latest offered price
-  status       NegotiationStatus @default(pending)
-  counterPrice Decimal?          @db.Decimal(12, 2) // Farmer's latest counter offer
-  message      String?           @db.Text           // Latest message
-
-  expiresAt    DateTime?                            // Offer expiration
-
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-
-  // --- Class diagram: history array ---
-  history      NegotiationHistory[]
-
-  @@index([productId])
-  @@index([buyerId])
-  @@index([farmerId])
-  @@index([status])
-}
-
-model NegotiationHistory {
-  id            String   @id @default(uuid())
-  negotiationId String
-  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
-
-  senderId      String   // Who sent this offer/counter (buyer or farmer)
-  offerPrice    Decimal  @db.Decimal(12, 2)
-  message       String?  @db.Text
-
-  createdAt     DateTime @default(now())
-
-  @@index([negotiationId])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// MESSAGE (Sprint 3 — In-app chat between Buyer and Farmer)
-// =============================================================================
-// Matches project plan: "Buyer–Farmer Chat".
-// =============================================================================
-
-model Message {
-  id           String  @id @default(uuid())
-  content      String  @db.Text
-  isRead       Boolean @default(false)
-  attachmentUrl String? // For image/file attachments in chat
-
-  senderId     String
-  sender       User    @relation("MessageSender", fields: [senderId], references: [id])
-
-  receiverId   String
-  receiver     User    @relation("MessageReceiver", fields: [receiverId], references: [id])
-
-  // Optional context links
-  productId    String? // If chat is about a specific product
-  orderId      String? // If chat is about a specific order
-
-  createdAt    DateTime @default(now())
-
-  @@index([senderId])
-  @@index([receiverId])
-  @@index([isRead])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// NOTIFICATION (In-app + push notification support)
-// =============================================================================
-// Matches class diagram: Notification with notificationID, message, type, date.
-// =============================================================================
-
-model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type      NotificationType
-  title     String
-  body      String           @db.Text
-  data      Json?            // Flexible payload: { orderId: "...", productId: "..." }
-
-  isRead    Boolean          @default(false)
-
-  createdAt DateTime         @default(now())
-
-  @@index([userId])
-  @@index([isRead])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// INVENTORY LOG (Audit trail for stock changes)
-// =============================================================================
-// Matches class diagram: Inventory with stockQuantity, lastUpdated.
-// This goes beyond the diagram by tracking EVERY change, not just the current state.
-// =============================================================================
-
-model InventoryChangeRequest {
-  id             String                   @id @default(uuid())
-  farmerId       String
-  farmer         User                     @relation("InventoryRequestFarmer", fields: [farmerId], references: [id], onDelete: Cascade)
-
-  productId      String
-  product        Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  currentStock   Int
-  requestedStock Int
-  reason         String                   @db.Text
-  status         InventoryRequestStatus   @default(PENDING)
-
-  reviewedById   String?
-  reviewedBy     User?                    @relation("InventoryRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  rejectionReason String?                  @db.Text
-  approvedAt     DateTime?
-  rejectedAt     DateTime?
-
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-
-  @@index([farmerId])
-  @@index([productId])
-  @@index([status])
-}
-
-model InventoryLog {
-  id          String   @id @default(uuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  oldStock    Int
-  newStock    Int
-  change      Int      // Computed: newStock - oldStock
-  reason      String?  // e.g., "order_placed", "restock", "damaged", "manual_adjustment"
-
-  createdAt   DateTime @default(now())
-
-  @@index([productId])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// PROMOTION / OFFER (Sprint 4 — Discounts and deals)
-// =============================================================================
-// Matches project plan: "Offers & Promotional Notifications".
-// =============================================================================
-
-model Promotion {
-  id              String   @id @default(uuid())
-  farmerId        String?
-  farmer          User?    @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)
-  productId       String?
-  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  title           String
-  description     String?  @db.Text
-  discountPercent Int?     // e.g., 10 for 10% off
-  discountAmount  Decimal? @db.Decimal(12, 2) // Fixed amount off
-  minOrderAmount  Decimal? @db.Decimal(12, 2) // Minimum order to apply
-
-  startDate       DateTime
-  endDate         DateTime
-  isActive        Boolean  @default(true)
-  status          PromotionStatus @default(PENDING)
-  reviewedById    String?
-  reviewedBy      User?    @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt      DateTime?
-  rejectionReason String?  @db.Text
-
-  createdAt       DateTime @default(now())
-
-  productPromotions ProductPromotion[]
-
-  @@index([farmerId])
-  @@index([productId])
-  @@index([status])
-  @@index([isActive])
-  @@index([startDate, endDate])
-}
-
-model ProductPromotion {
-  id          String    @id @default(uuid())
-  productId   String
-  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  promotionId String
-  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
-
-  @@unique([productId, promotionId])
-}
-
-// =============================================================================
-// PRODUCT COMPARISON (Sprint 3 — Buyers save product comparisons)
-// =============================================================================
-// Matches project plan: "Product Comparison".
-// =============================================================================
-
-model ProductComparison {
-  id        String   @id @default(uuid())
-  buyerId   String
-  name      String?  // e.g., "Rice Comparison Aug 2026"
-
-  createdAt DateTime @default(now())
-
-  items     ComparisonItem[]
-}
-
-model ComparisonItem {
-  id           String            @id @default(uuid())
-  comparisonId String
-  comparison   ProductComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
-
-  productId    String
-
-  @@unique([comparisonId, productId])
-}
-
-// =============================================================================
-// PRODUCT VIEW (Tracks what buyers view — powers Smart Recommendations)
-// =============================================================================
-// Sprint 1: "recommend products based on a buyer's previous purchases and
-// highly rated products". This table tracks browsing history for the algo.
-// =============================================================================
-
-model ProductView {
-  id        String   @id @default(uuid())
-  buyerId   String
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)  // <-- ADD THIS LINE
-
-  createdAt DateTime @default(now())
-
-  @@index([buyerId])
-  @@index([productId])
-  @@index([createdAt])
-}
-
-// =============================================================================
-// MARKET PRICE (Sprint 4 — Historical prices per category for estimation)
-// =============================================================================
-// Matches project plan: "Market Price Estimation & Negotiation".
-// =============================================================================
-
-model MarketPrice {
-  id           String   @id @default(uuid())
-  categoryId   String
-  category     Category @relation(fields: [categoryId], references: [id])
-
-  averagePrice Decimal  @db.Decimal(12, 2)
-  minPrice     Decimal  @db.Decimal(12, 2)
-  maxPrice     Decimal  @db.Decimal(12, 2)
-  sampleSize   Int      // How many products contributed to this price
-
-  date         DateTime // The day this price was recorded
-
-  createdAt    DateTime @default(now())
-
-  @@index([categoryId])
-  @@index([date])
-}
-
-// =============================================================================
-// SALES REPORT (Sprint 4 — Admin-generated reports)
-// =============================================================================
-// Matches class diagram: SalesReport with reportID, totalSales, revenue, period.
-// =============================================================================
-
-model SalesReport {
-  id           String   @id @default(uuid())
-  adminId      String
-  admin        User     @relation(fields: [adminId], references: [id])
-
-  title        String
-  period       String   // e.g., "2026-08", "2026-Q3", "2026-W32"
-  totalOrders  Int
-  totalSales   Int      // Total items sold
-  totalRevenue Decimal  @db.Decimal(12, 2)
-  data         Json?    // Detailed breakdown stored as JSON
-
-  createdAt    DateTime @default(now())
-
-  @@index([adminId])
-  @@index([period])
-}
-
-// =============================================================================
-// ADMIN ACTION LOG (Audit trail for admin approvals, suspensions, removals)
-// =============================================================================
-// Sprint 4: "administrators manage user accounts, approve product listings,
-// remove content that violates platform policies".
-// This table records every admin action for accountability.
-// =============================================================================
-
-model AdminActionLog {
-  id         String   @id @default(uuid())
-  adminId    String
-  admin      User     @relation(fields: [adminId], references: [id])
-
-  action     String   // e.g., "approve_product", "suspend_user", "remove_product", "verify_farmer"
-  targetType String   // e.g., "product", "user", "review"
-  targetId   String   // ID of the affected record
-  reason     String?  @db.Text
-
-  createdAt  DateTime @default(now())
-
-  @@index([adminId])
-  @@index([targetType, targetId])
-  @@index([createdAt])
+enum DeliveryType {
+  normal
+  instant
+  same_day
+  scheduled
 }

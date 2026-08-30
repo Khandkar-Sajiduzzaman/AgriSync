@@ -14,11 +14,16 @@ import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
 import ComparePage from "./pages/ComparePage";
 import ReviewModeration from "./pages/ReviewModeration";
+import AdminDashboard from "./pages/AdminDashboard";
 // NEW PAGES for Place Order feature
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
+
+
+// Negotiations page
+import NegotiationsPage from "./pages/NegotiationsPage";
 
 //Chat
 import ChatPage from "./pages/ChatPage";
@@ -82,6 +87,11 @@ function App() {
         <Route
           path="/review-moderation"
           element={role === "admin" ? <ReviewModeration /> : <Navigate to="/" replace />}
+        />
+        {/* Admin Panel */}
+        <Route
+          path="/admin"
+          element={role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
         />
         {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />
@@ -150,6 +160,11 @@ function App() {
         <Route
           path="/orders/:id"
           element={role === "buyer" || role === "farmer" ? <OrderDetailPage /> : <Navigate to="/delivery" replace />}
+        />
+        {/* Negotiations (Buyer + Farmer only) */}
+        <Route
+          path="/negotiations"
+          element={role === "buyer" || role === "farmer" ? <NegotiationsPage /> : <Navigate to="/" replace />}
         />
         {/* Delivery Man Dashboard */}
         <Route
