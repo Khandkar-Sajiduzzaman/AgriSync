@@ -5,7 +5,7 @@ import { getWishlist, toggleWishlist } from "../api/userApi"
 import ProductCard from "../components/product/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles, Scale } from "lucide-react"
+import { MapPin, User, Search, PlusCircle, PackageOpen, Heart, Sparkles, Scale, Shield } from "lucide-react"
 import { FaTruck } from "react-icons/fa"
 
 function Dashboard() {
@@ -240,6 +240,13 @@ function Dashboard() {
                 <User className="w-4 h-4 mr-2" /> My Profile
               </Button>
             </Link>
+            {role === "admin" && (
+              <Link to="/admin">
+                <Button variant="outline">
+                  <Shield className="w-4 h-4 mr-2" /> Admin Panel
+                </Button>
+              </Link>
+            )}
             {role === "buyer" && (
               <>
                 <Link to="/products/browse">

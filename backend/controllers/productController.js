@@ -33,12 +33,32 @@ const serializeNutritionInfo = (input) => {
   return null;
 };
 
+const activePromotionInclude = () => ({
+  promotions: {
+    where: {
+      promotion: {
+        status: 'APPROVED',
+        isActive: true,
+        startDate: { lte: new Date() },
+        endDate: { gte: new Date() },
+      },
+    },
+    include: { promotion: true },
+  },
+});
+
 // Helper: convert Prisma Decimal to plain number + add _id alias for frontend compatibility
 const shapeProduct = (product) => ({
   ...product,
   _id: product.id,
   id: undefined,
   nutritionInfo: parseNutritionInfo(product.nutritionInfo),
+  promotions: product.promotions?.map(({ promotion }) => ({
+    ...promotion,
+    _id: promotion.id,
+    discountAmount: promotion.discountAmount?.toNumber ? promotion.discountAmount.toNumber() : promotion.discountAmount,
+    minOrderAmount: promotion.minOrderAmount?.toNumber ? promotion.minOrderAmount.toNumber() : promotion.minOrderAmount,
+  })),
   farmer: product.farmer
     ? {
         _id: product.farmer.id,
@@ -147,7 +167,8 @@ const getProducts = async (req, res) => {
         include: {
           farmer: {
             select: { id: true, name: true }
-          }
+          },
+          ...activePromotionInclude(),
         },
         orderBy,
         skip,
@@ -175,7 +196,8 @@ const getProductById = async (req, res) => {
       include: { 
         farmer: { 
           select: { id: true, name: true } // SECURITY: Removed email, phone, address
-        } 
+        },
+        ...activePromotionInclude(),
       },
     });
 

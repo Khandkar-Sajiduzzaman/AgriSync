@@ -16,6 +16,7 @@ import BrowseProducts from "./pages/BrowseProducts";
 import Wishlist from "./pages/Wishlist";
 import ComparePage from "./pages/ComparePage";
 import ReviewModeration from "./pages/ReviewModeration";
+import AdminDashboard from "./pages/AdminDashboard";
 // NEW PAGES for Place Order feature
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -35,6 +36,12 @@ import DeliveryZones from "./pages/DeliveryZones";
 import DeliveryZonesPublic from "./pages/DeliveryZonesPublic";
 import InventoryManagement from "./pages/InventoryManagement";
 import InventoryRequestPage from "./pages/InventoryRequestPage";
+import OfferRequestsPage from "./pages/OfferRequestsPage";
+import OfferModeration from "./pages/OfferModeration";
+import OfferNotificationsPage from "./pages/OfferNotificationsPage";
+
+//Report
+import SalesReportPage from "./pages/SalesReportPage";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -128,6 +135,11 @@ function App() {
           path="/review-moderation"
           element={role === "admin" ? <ReviewModeration /> : <Navigate to="/" replace />}
         />
+        {/* Admin Panel */}
+        <Route
+          path="/admin"
+          element={role === "admin" ? <AdminDashboard /> : <Navigate to="/" replace />}
+        />
         {/* Profile */}
         <Route path="/profile" element={<ProfilePage />} />
 
@@ -147,6 +159,18 @@ function App() {
         <Route
           path="/inventory/requests"
           element={role === "farmer" ? <InventoryRequestPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/farmer/offers"
+          element={role === "farmer" ? <OfferRequestsPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/offer-moderation"
+          element={role === "admin" ? <OfferModeration /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/offers"
+          element={role === "buyer" ? <OfferNotificationsPage /> : <Navigate to="/" replace />}
         />
 
         {/* Edit Product */}
@@ -213,6 +237,11 @@ function App() {
           element={role === "admin" ? <InventoryManagement /> : <Navigate to="/" replace />}
         />
       </Route>
+      {/* Admin Sales Reports */}
+        <Route
+          path="/sales-reports"
+          element={role === "admin" ? <SalesReportPage /> : <Navigate to="/" replace />}
+        />
       {/* Unknown Routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
