@@ -5,12 +5,8 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // Required for Prisma migrations (bypasses Supabase pooler)
+  directUrl = env("DIRECT_URL")
 }
-
-// =============================================================================
-// ENUMS
-// =============================================================================
 
 enum Role {
   buyer
@@ -19,7 +15,6 @@ enum Role {
   admin
 }
 
-
 enum AccountStatus {
   active
   suspended
@@ -27,15 +22,15 @@ enum AccountStatus {
 }
 
 enum OrderStatus {
-  pending          // Buyer placed order, waiting farmer confirmation
-  confirmed        // Farmer accepted the order
-  processing       // Farmer is preparing the items
+  pending
+  confirmed
+  processing
   awaiting_delivery
-  shipped          // Items handed to delivery man
-  out_for_delivery // Delivery man is on the way
-  delivered        // Buyer received the items
-  cancelled        // Cancelled by buyer or farmer
-  refunded         // Payment refunded
+  shipped
+  out_for_delivery
+  delivered
+  cancelled
+  refunded
 }
 
 enum PaymentStatus {
@@ -95,6 +90,7 @@ enum UnitType {
   bag
   box
 }
+
 enum ModerationStatus {
   pending
   approved
@@ -115,16 +111,11 @@ enum DeliveryRequestStatus {
   cancelled
   expired
 }
-// =============================================================================
-// USER & ROLE PROFILES
-// =============================================================================
-// Single User table with role enum + separate profile tables for each role.
-// This is the Prisma way of handling inheritance (class table inheritance).
-// Matches the class diagram: User is the base; Admin, Buyer, Farmer,
-// DeliveryMan are specializations.
-// =============================================================================
 
-  directUrl = env("DIRECT_URL")
+enum PromotionStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -149,66 +140,27 @@ model User {
   buyerProfile              BuyerProfile?
   cartItems                 CartItem[]
   deliveryManProfile        DeliveryManProfile?
-  DeliveryRequest           DeliveryRequest[]
-  farmerProfile              FarmerProfile?
+  deliveryRequests          DeliveryRequest[]        @relation("DeliveryManRequests")
+  farmerProfile             FarmerProfile?
   following                 Follow[]                 @relation("UserFollowing")
   followers                 Follow[]                 @relation("UserFollowers")
   inventoryRequests         InventoryChangeRequest[] @relation("InventoryRequestFarmer")
   reviewedInventoryRequests InventoryChangeRequest[] @relation("InventoryRequestReviewer")
-
-  // --- Relations: Wishlist & Follow ---
-  wishlist      Wishlist[]
-  following     Follow[]    @relation("UserFollowing")
-  followers     Follow[]    @relation("UserFollowers")
-
-  // --- Relations: Orders ---
-  ordersAsBuyer   Order[]   @relation("OrderBuyer")
-  ordersAsFarmer  Order[]   @relation("OrderFarmer")
-
-  // --- Relations: Delivery ---
-  assignedDeliveries Order[] @relation("OrderDeliveryMan")
-
-    // NEW RELATION: delivery requests sent to this delivery man
-  deliveryRequests   DeliveryRequest[] @relation("DeliveryManRequests")
-
-  // --- Relations: Chat ---
-  messagesSent     Message[] @relation("MessageSender")
-  messagesReceived Message[] @relation("MessageReceiver")
-
-  // --- Relations: Reviews ---
-  reviewsGiven     Review[]  @relation("ReviewAuthor")
-
-  // --- Relations: Negotiation ---
-  negotiationsAsBuyer  Negotiation[] @relation("NegotiationBuyer")
-  negotiationsAsFarmer Negotiation[] @relation("NegotiationFarmer")
-
-  // --- Relations: Notifications ---
-  notifications    Notification[]
-
-  // --- Relations: Cart ---
-  cartItems        CartItem[]
-
-  // --- Relations: Product Votes ---
-  productVotes     ProductVote[]
-
-  // --- Relations: Admin ---
-  adminActions     AdminActionLog[]
-  reportsGenerated SalesReport[]
-  messagesReceived          Message[]                @relation("MessageReceiver")
+  wishlist                  Wishlist[]
+  ordersAsBuyer             Order[]                  @relation("OrderBuyer")
+  ordersAsFarmer            Order[]                  @relation("OrderFarmer")
+  assignedDeliveries        Order[]                  @relation("OrderDeliveryMan")
   messagesSent              Message[]                @relation("MessageSender")
+  messagesReceived          Message[]                @relation("MessageReceiver")
+  reviewsGiven              Review[]                 @relation("ReviewAuthor")
   negotiationsAsBuyer       Negotiation[]            @relation("NegotiationBuyer")
   negotiationsAsFarmer      Negotiation[]            @relation("NegotiationFarmer")
   notifications             Notification[]
-  ordersAsBuyer             Order[]                  @relation("OrderBuyer")
-  assignedDeliveries        Order[]                  @relation("OrderDeliveryMan")
-  ordersAsFarmer            Order[]                  @relation("OrderFarmer")
   products                  Product[]
   productVotes              ProductVote[]
   promotionRequests         Promotion[]              @relation("PromotionFarmer")
   reviewedPromotions        Promotion[]              @relation("PromotionReviewer")
-  reviewsGiven              Review[]                 @relation("ReviewAuthor")
   reportsGenerated          SalesReport[]
-  wishlist                  Wishlist[]
 
   @@index([email])
   @@index([role])
@@ -248,41 +200,17 @@ model BuyerProfile {
 }
 
 model DeliveryManProfile {
-  id               String  @id @default(uuid())
-  userId           String  @unique
-  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  vehicleType      String? // e.g., "Motorcycle", "Van", "Truck"
-  licenseNumber    String?
-  currentLatitude  Float?
-  currentLongitude Float?
-  lastLocationUpdate DateTime?  //When was gps last Updated
-  isAvailable      Boolean @default(true)
-  // NEW: area preferences and capacity
-  preferredAreas   String[]
-  maxOrders        Int     @default(3)
-}
-
-// =============================================================================
-// CATEGORY
-// =============================================================================
-// Replaces free-text category with a proper taxonomy.
-// Supports sub-categories via self-relation (parent/children).
-// For NOW the frontend still sends free-text `category` — store that in
-// Product.legacyCategory. When you migrate to structured categories, use
-// Product.categoryId instead.
-// =============================================================================
-  id                 String    @id @default(uuid())
-  userId             String    @unique
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   vehicleType        String?
   licenseNumber      String?
   currentLatitude    Float?
   currentLongitude   Float?
   lastLocationUpdate DateTime?
-  isAvailable        Boolean   @default(true)
+  isAvailable        Boolean  @default(true)
   preferredAreas     String[]
-  maxOrders          Int       @default(3)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  maxOrders          Int      @default(3)
 }
 
 model Category {
@@ -420,34 +348,20 @@ model Order {
   cancelledBy       String?
   deliveryManId     String?
   estimatedDelivery DateTime?
-  deliveredAt       DateTime?
-
-  // NEW FIELDS FOR DELIVERY SYSTEM
-  deliveryType    DeliveryType  @default(normal)
-  deliveryCity    String?
-  deliveryArea    String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  items           OrderItem[]
-  statusHistory   OrderStatusHistory[]
-  reviews         Review[]
-  trackingUpdates DeliveryTracking[]
-  deliveryRequests DeliveryRequest[]
   deliveryType      DeliveryType         @default(normal)
   deliveryCity      String?
   deliveryArea      String?
+  deliveredAt       DateTime?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
-  DeliveryRequest   DeliveryRequest[]
-  trackingUpdates   DeliveryTracking[]
-  buyer             User                 @relation("OrderBuyer", fields: [buyerId], references: [id])
-  deliveryMan       User?                @relation("OrderDeliveryMan", fields: [deliveryManId], references: [id])
-  farmer            User                 @relation("OrderFarmer", fields: [farmerId], references: [id])
   items             OrderItem[]
   statusHistory     OrderStatusHistory[]
   reviews           Review[]
+  trackingUpdates   DeliveryTracking[]
+  deliveryRequests  DeliveryRequest[]
+  buyer             User                 @relation("OrderBuyer", fields: [buyerId], references: [id])
+  deliveryMan       User?                @relation("OrderDeliveryMan", fields: [deliveryManId], references: [id])
+  farmer            User                 @relation("OrderFarmer", fields: [farmerId], references: [id])
 
   @@index([buyerId])
   @@index([farmerId])
@@ -544,20 +458,20 @@ model Review {
 }
 
 model Negotiation {
-  id           String               @id @default(uuid())
+  id           String            @id @default(uuid())
   productId    String
   buyerId      String
   farmerId     String
-  offerPrice   Decimal              @db.Decimal(12, 2)
-  status       NegotiationStatus    @default(pending)
-  counterPrice Decimal?             @db.Decimal(12, 2)
+  offerPrice   Decimal           @db.Decimal(12, 2)
+  status       NegotiationStatus @default(pending)
+  counterPrice Decimal?          @db.Decimal(12, 2)
   message      String?
   expiresAt    DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  buyer        User                 @relation("NegotiationBuyer", fields: [buyerId], references: [id])
-  farmer       User                 @relation("NegotiationFarmer", fields: [farmerId], references: [id])
-  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  buyer        User              @relation("NegotiationBuyer", fields: [buyerId], references: [id])
+  farmer       User              @relation("NegotiationFarmer", fields: [farmerId], references: [id])
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   history      NegotiationHistory[]
 
   @@index([productId])
@@ -652,25 +566,25 @@ model InventoryLog {
 }
 
 model Promotion {
-  id                String             @id @default(uuid())
+  id                String          @id @default(uuid())
   farmerId          String?
-  farmer            User?              @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)
+  farmer            User?           @relation("PromotionFarmer", fields: [farmerId], references: [id], onDelete: SetNull)
   productId         String?
-  product           Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
   title             String
-  description       String?            @db.Text
+  description       String?         @db.Text
   discountPercent   Int?
-  discountAmount    Decimal?           @db.Decimal(12, 2)
-  minOrderAmount    Decimal?           @db.Decimal(12, 2)
+  discountAmount    Decimal?        @db.Decimal(12, 2)
+  minOrderAmount    Decimal?        @db.Decimal(12, 2)
   startDate         DateTime
   endDate           DateTime
-  isActive          Boolean            @default(true)
-  status            PromotionStatus    @default(PENDING)
+  isActive          Boolean         @default(true)
+  status            PromotionStatus @default(PENDING)
   reviewedById      String?
-  reviewedBy        User?              @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedBy        User?           @relation("PromotionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt        DateTime?
-  rejectionReason   String?            @db.Text
-  createdAt         DateTime           @default(now())
+  rejectionReason   String?         @db.Text
+  createdAt         DateTime        @default(now())
   productPromotions ProductPromotion[]
 
   @@index([farmerId])
@@ -766,141 +680,17 @@ model AdminActionLog {
 }
 
 model DeliveryRequest {
-  id              String                @id @default(uuid())
-  orderId         String
-  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  deliveryManId   String
-  deliveryMan     User                  @relation("DeliveryManRequests", fields: [deliveryManId], references: [id], onDelete: Cascade)
-  status          DeliveryRequestStatus @default(pending)
-  requestType     DeliveryType
-  message         String?
-  createdAt       DateTime              @default(now())
-  respondedAt     DateTime?
-
-  @@index([deliveryManId, status])
-  @@index([orderId])
-}
-  id            String                @id
+  id            String                @id @default(uuid())
   orderId       String
+  order         Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
   deliveryManId String
+  deliveryMan   User                  @relation("DeliveryManRequests", fields: [deliveryManId], references: [id], onDelete: Cascade)
   status        DeliveryRequestStatus @default(pending)
   requestType   DeliveryType
   message       String?
   createdAt     DateTime              @default(now())
   respondedAt   DateTime?
-  User          User                  @relation(fields: [deliveryManId], references: [id], onDelete: Cascade)
-  Order         Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([deliveryManId, status])
   @@index([orderId])
-}
-
-enum Role {
-  buyer
-  farmer
-  delivery_man
-  admin
-}
-
-enum AccountStatus {
-  active
-  suspended
-  deactivated
-}
-
-enum OrderStatus {
-  pending
-  confirmed
-  processing
-  awaiting_delivery
-  shipped
-  out_for_delivery
-  delivered
-  cancelled
-  refunded
-}
-
-enum PaymentStatus {
-  pending
-  paid
-  failed
-  refunded
-}
-
-enum PaymentMethod {
-  cash_on_delivery
-  online_transfer
-  mobile_banking
-  card
-}
-
-enum NegotiationStatus {
-  pending
-  accepted
-  rejected
-  countered
-  expired
-}
-
-enum VerificationStatus {
-  unverified
-  pending
-  verified
-  rejected
-}
-
-enum NotificationType {
-  order_update
-  message
-  negotiation
-  follow
-  review
-  promotion
-  system
-  price_drop
-  stock_alert
-}
-
-enum InventoryRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum PromotionStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum UnitType {
-  kg
-  gram
-  liter
-  piece
-  bunch
-  dozen
-  bag
-  box
-}
-
-enum ModerationStatus {
-  pending
-  approved
-  rejected
-}
-
-enum DeliveryRequestStatus {
-  pending
-  accepted
-  rejected
-  cancelled
-  expired
-}
-
-enum DeliveryType {
-  normal
-  instant
-  same_day
-  scheduled
 }
