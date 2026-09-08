@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:5000/api/orders";
+const BASE_URL = `${import.meta.env.VITE_API_URL}/api/orders`;
 
 const getToken = () => localStorage.getItem("token");
 
@@ -119,7 +119,7 @@ export const getLatestTracking = async (orderId) => {
 
 // Delivery man updates their GPS location
 export const updateDeliveryLocation = async (lat, lng) => {
-  const res = await fetch("http://localhost:5000/api/delivery/location", {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/api/delivery/location`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeader() },
     body: JSON.stringify({ latitude: lat, longitude: lng }),

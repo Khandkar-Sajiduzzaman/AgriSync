@@ -2,7 +2,7 @@
 // don't each write their own fetch() logic. Similar to having one
 // api.js file instead of scattering curl/AJAX calls across pages.
 
-const BASE_URL = "http://localhost:5000/api/users";
+const BASE_URL = `${import.meta.env.VITE_API_URL}/api/users`;
 
 // helper: reads the saved token and builds the auth header
 const authHeader = () => {

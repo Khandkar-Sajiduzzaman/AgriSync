@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5000/api/comparisons";
+const API_URL = `${import.meta.env.VITE_API_URL}/api/comparisons`;
 
 // Get full details for a set of products (up to 4) for side-by-side comparison
 export const getComparisonProducts = async (ids = []) => {
