@@ -18,7 +18,7 @@ const inventoryRoutes = require("./routes/inventoryRoutes");
 const comparisonRoutes = require("./routes/comparisonRoutes");
 const offerRoutes = require("./routes/offerRoutes");
 const negotiationRoutes = require("./routes/negotiationRoutes");
-
+const paymentRoutes = require("./routes/paymentRoutes");
 const app = express();
 
 // CORS: Explicitly allow your frontend origin
@@ -52,6 +52,7 @@ app.use("/api/comparisons", comparisonRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/negotiations", negotiationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payment", paymentRoutes);
 
 // Health check — visit http://localhost:5000/ to confirm backend is alive
 app.get("/", (req, res) => {

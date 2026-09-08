@@ -3,9 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { getCart } from "../api/cartApi";
 import { placeOrder } from "../api/orderApi";
 import { useCart } from "../context/CartContext";
+import { createBkashPayment } from "../api/paymentApi";
 
 function CheckoutPage() {
-  const [cart, setCart] = useState({ items: [], summary: { totalItems: 0, totalPrice: 0 } });
+  const [cart, setCart] = useState({
+    items: [],
+    summary: { totalItems: 0, totalPrice: 0 },
+  });
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState("normal");
   const [deliveryNotes, setDeliveryNotes] = useState("");
@@ -15,11 +19,16 @@ function CheckoutPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
-  
+
   // BUG FIX: Destructure BOTH clearCart and refreshCart from context
   const { clearCart, refreshCart } = useCart();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+
+  const deliveryFee = deliveryType === "instant" ? 150 : 60;
+  const discount = 0;
+  const grandTotal = cart.summary.totalPrice + deliveryFee - discount;
 
   useEffect(() => {
     loadCart();
@@ -47,54 +56,81 @@ function CheckoutPage() {
     }
     setPlacing(true);
     setError("");
-    console.log('Checkout: Placing order...');
-    
+    console.log("Checkout: Placing order...");
+
     // Extract city and area from address for delivery grouping
-    // Simple heuristic: last comma-separated part = city, second-last = area
-    const addressParts = deliveryAddress.split(',').map(s => s.trim());
-    const deliveryCity = addressParts[addressParts.length - 1] || addressParts[0] || '';
-    const deliveryArea = addressParts.length > 1 ? addressParts[addressParts.length - 2] : '';
-    
+    const addressParts = deliveryAddress.split(",").map((s) => s.trim());
+    const deliveryCity =
+      addressParts[addressParts.length - 1] || addressParts[0] || "";
+    const deliveryArea =
+      addressParts.length > 1 ? addressParts[addressParts.length - 2] : "";
+
     try {
       const data = await placeOrder({
         deliveryAddress,
         deliveryNotes,
         paymentMethod,
-        deliveryFee,        // Send calculated delivery fee to backend
+        deliveryFee, // Send calculated delivery fee to backend
         discountAmount: 0,
-        // NEW: let customer choose delivery type
         deliveryType,
         deliveryCity,
         deliveryArea,
       });
-      console.log('Checkout: Order placed successfully!', data);
+      console.log("Checkout: Order placed successfully!", data);
+
+      // --- bKash Integration Logic Starts Here ---
+      if (paymentMethod === "mobile_banking") {
+        // Grab the ID of the newly created order
+        const orderId = data.orders[0]._id || data.orders[0].id;
+
+        try {
+          // Call your new bKash payment API
+          const bkashData = await createBkashPayment(orderId);
+          // Redirect the user to the bKash portal
+          window.location.href = bkashData.bkashURL;
+          return; // Exit the function early so the standard success UI doesn't render
+        } catch (bkashErr) {
+          setError(
+            `Order placed, but payment failed to initialize: ${bkashErr.message}`,
+          );
+          setPlacing(false);
+          return;
+        }
+      }
+      // --- bKash Integration Logic Ends Here ---
+
+      // Normal flow for Cash on Delivery / other methods
       setSuccess(data);
       refreshCart();
+      setPlacing(false);
     } catch (err) {
-      console.error('Checkout: Error placing order:', err.message);
+      console.error("Checkout: Error placing order:", err.message);
       setError(err.message);
-    } finally {
-      console.log('Checkout: Setting placing to false');
       setPlacing(false);
     }
   };
 
-   // Calculate totals — delivery fee depends on type chosen by customer
-  // normal = ৳60 (standard, may be batched with other orders)
-  // instant = ৳150 (priority, dedicated delivery man)
-  const deliveryFee = deliveryType === "instant" ? 150 : 60;
-  const discount = 0;
-  const grandTotal = cart.summary.totalPrice + deliveryFee - discount;
-
-  if (loading) return <p style={{ textAlign: "center", marginTop: "40px" }}>Loading...</p>;
+  if (loading)
+    return <p style={{ textAlign: "center", marginTop: "40px" }}>Loading...</p>;
 
   // SUCCESS STATE
   if (success) {
     return (
-      <div style={{ maxWidth: "500px", margin: "60px auto", textAlign: "center", padding: "0 20px" }}>
+      <div
+        style={{
+          maxWidth: "500px",
+          margin: "60px auto",
+          textAlign: "center",
+          padding: "0 20px",
+        }}
+      >
         <div style={{ fontSize: "60px", marginBottom: "10px" }}>✅</div>
-        <h1 style={{ color: "#27ae60", margin: "0 0 10px 0" }}>Order Placed!</h1>
-        <p style={{ color: "#666", marginBottom: "25px" }}>Thank you for shopping with AgriSync.</p>
+        <h1 style={{ color: "#27ae60", margin: "0 0 10px 0" }}>
+          Order Placed!
+        </h1>
+        <p style={{ color: "#666", marginBottom: "25px" }}>
+          Thank you for shopping with AgriSync.
+        </p>
 
         {success.orders?.map((order) => (
           <div
@@ -108,22 +144,45 @@ function CheckoutPage() {
               textAlign: "left",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "8px",
+              }}
+            >
               <span style={{ color: "#666", fontSize: "13px" }}>Order #</span>
-              <span style={{ fontWeight: "bold", fontSize: "14px" }}>{order.orderNumber}</span>
+              <span style={{ fontWeight: "bold", fontSize: "14px" }}>
+                {order.orderNumber}
+              </span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "8px",
+              }}
+            >
               <span style={{ color: "#666", fontSize: "13px" }}>Farmer</span>
               <span style={{ fontWeight: "500" }}>{order.farmer?.name}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "#666", fontSize: "13px" }}>Total</span>
-              <span style={{ fontWeight: "bold", color: "#27ae60" }}>৳{order.totalAmount}</span>
+              <span style={{ fontWeight: "bold", color: "#27ae60" }}>
+                ৳{order.totalAmount}
+              </span>
             </div>
           </div>
         ))}
 
-        <div style={{ marginTop: "30px", display: "flex", gap: "10px", justifyContent: "center" }}>
+        <div
+          style={{
+            marginTop: "30px",
+            display: "flex",
+            gap: "10px",
+            justifyContent: "center",
+          }}
+        >
           <button
             onClick={() => navigate("/orders")}
             style={{
@@ -161,42 +220,57 @@ function CheckoutPage() {
   return (
     <div style={{ maxWidth: "700px", margin: "30px auto", padding: "0 20px" }}>
       <h1 style={{ margin: "0 0 5px 0", fontSize: "28px" }}>Checkout</h1>
-      <p style={{ color: "#888", margin: "0 0 25px 0", fontSize: "14px" }}>Review your order and enter delivery details</p>
+      <p style={{ color: "#888", margin: "0 0 25px 0", fontSize: "14px" }}>
+        Review your order and enter delivery details
+      </p>
 
       {error && (
-        <div style={{
-          background: "#ffebee",
-          color: "#c62828",
-          padding: "12px 16px",
-          borderRadius: "8px",
-          marginBottom: "20px",
-          fontSize: "14px",
-          border: "1px solid #ef9a9a",
-        }}>
+        <div
+          style={{
+            background: "#ffebee",
+            color: "#c62828",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            fontSize: "14px",
+            border: "1px solid #ef9a9a",
+          }}
+        >
           {error}
         </div>
       )}
 
       {/* RECEIPT SECTION */}
-      <div style={{
-        background: "#fff",
-        border: "1px solid #ddd",
-        borderRadius: "12px",
-        overflow: "hidden",
-        marginBottom: "25px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-      }}>
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #ddd",
+          borderRadius: "12px",
+          overflow: "hidden",
+          marginBottom: "25px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+        }}
+      >
         {/* Receipt Header */}
-        <div style={{
-          background: "#2e7d32",
-          color: "white",
-          padding: "20px 25px",
-          textAlign: "center",
-        }}>
+        <div
+          style={{
+            background: "#2e7d32",
+            color: "white",
+            padding: "20px 25px",
+            textAlign: "center",
+          }}
+        >
           <div style={{ fontSize: "32px", marginBottom: "5px" }}>🧾</div>
-          <h2 style={{ margin: "0", fontSize: "20px", fontWeight: "700" }}>Order Receipt</h2>
+          <h2 style={{ margin: "0", fontSize: "20px", fontWeight: "700" }}>
+            Order Receipt
+          </h2>
           <p style={{ margin: "5px 0 0 0", fontSize: "13px", opacity: 0.9 }}>
-            {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
           </p>
         </div>
 
@@ -212,18 +286,43 @@ function CheckoutPage() {
                   justifyContent: "space-between",
                   alignItems: "flex-start",
                   padding: "10px 0",
-                  borderBottom: index < cart.items.length - 1 ? "1px solid #f0f0f0" : "none",
+                  borderBottom:
+                    index < cart.items.length - 1
+                      ? "1px solid #f0f0f0"
+                      : "none",
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: "0", fontWeight: "600", fontSize: "15px", color: "#333" }}>
+                  <p
+                    style={{
+                      margin: "0",
+                      fontWeight: "600",
+                      fontSize: "15px",
+                      color: "#333",
+                    }}
+                  >
                     {item.product.name}
                   </p>
-                  <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#888" }}>
+                  <p
+                    style={{
+                      margin: "3px 0 0 0",
+                      fontSize: "13px",
+                      color: "#888",
+                    }}
+                  >
                     ৳{item.product.price} × {item.quantity} {item.product.unit}
                   </p>
                 </div>
-                <p style={{ margin: "0", fontWeight: "600", fontSize: "15px", color: "#333", minWidth: "80px", textAlign: "right" }}>
+                <p
+                  style={{
+                    margin: "0",
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    color: "#333",
+                    minWidth: "80px",
+                    textAlign: "right",
+                  }}
+                >
                   ৳{item.itemTotal}
                 </p>
               </div>
@@ -231,50 +330,95 @@ function CheckoutPage() {
           </div>
 
           {/* Dashed divider */}
-          <div style={{
-            borderTop: "2px dashed #ddd",
-            margin: "15px 0",
-          }} />
+          <div
+            style={{
+              borderTop: "2px dashed #ddd",
+              margin: "15px 0",
+            }}
+          />
 
           {/* Totals */}
           <div style={{ padding: "0 5px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-              <span style={{ color: "#666", fontSize: "14px" }}>Subtotal ({cart.summary.totalItems} items)</span>
-              <span style={{ fontSize: "14px", color: "#333" }}>৳{cart.summary.totalPrice}</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "8px",
+              }}
+            >
+              <span style={{ color: "#666", fontSize: "14px" }}>
+                Subtotal ({cart.summary.totalItems} items)
+              </span>
+              <span style={{ fontSize: "14px", color: "#333" }}>
+                ৳{cart.summary.totalPrice}
+              </span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-              <span style={{ color: "#666", fontSize: "14px" }}>Delivery Fee ({deliveryType === "instant" ? "Express" : "Normal"})</span>
-              <span style={{ fontSize: "14px", color: "#333" }}>৳{deliveryFee}</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "8px",
+              }}
+            >
+              <span style={{ color: "#666", fontSize: "14px" }}>
+                Delivery Fee (
+                {deliveryType === "instant" ? "Express" : "Normal"})
+              </span>
+              <span style={{ fontSize: "14px", color: "#333" }}>
+                ৳{deliveryFee}
+              </span>
             </div>
             {discount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                <span style={{ color: "#27ae60", fontSize: "14px" }}>Discount</span>
-                <span style={{ fontSize: "14px", color: "#27ae60" }}>-৳{discount}</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "8px",
+                }}
+              >
+                <span style={{ color: "#27ae60", fontSize: "14px" }}>
+                  Discount
+                </span>
+                <span style={{ fontSize: "14px", color: "#27ae60" }}>
+                  -৳{discount}
+                </span>
               </div>
             )}
           </div>
 
           {/* Final total */}
-          <div style={{
-            borderTop: "2px solid #2e7d32",
-            marginTop: "15px",
-            paddingTop: "15px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}>
-            <span style={{ fontSize: "18px", fontWeight: "700", color: "#2e7d32" }}>Total Amount</span>
-            <span style={{ fontSize: "24px", fontWeight: "800", color: "#2e7d32" }}>৳{grandTotal}</span>
+          <div
+            style={{
+              borderTop: "2px solid #2e7d32",
+              marginTop: "15px",
+              paddingTop: "15px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span
+              style={{ fontSize: "18px", fontWeight: "700", color: "#2e7d32" }}
+            >
+              Total Amount
+            </span>
+            <span
+              style={{ fontSize: "24px", fontWeight: "800", color: "#2e7d32" }}
+            >
+              ৳{grandTotal}
+            </span>
           </div>
         </div>
 
         {/* Receipt Footer */}
-        <div style={{
-          background: "#f8f9fa",
-          padding: "12px 25px",
-          textAlign: "center",
-          borderTop: "1px solid #eee",
-        }}>
+        <div
+          style={{
+            background: "#f8f9fa",
+            padding: "12px 25px",
+            textAlign: "center",
+            borderTop: "1px solid #eee",
+          }}
+        >
           <p style={{ margin: "0", fontSize: "12px", color: "#999" }}>
             Thank you for supporting local farmers! 🌾
           </p>
@@ -282,17 +426,29 @@ function CheckoutPage() {
       </div>
 
       {/* DELIVERY FORM */}
-      <div style={{
-        background: "#fff",
-        border: "1px solid #ddd",
-        borderRadius: "12px",
-        padding: "25px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-      }}>
-        <h3 style={{ margin: "0 0 20px 0", fontSize: "18px", color: "#333" }}>Delivery Details</h3>
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #ddd",
+          borderRadius: "12px",
+          padding: "25px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h3 style={{ margin: "0 0 20px 0", fontSize: "18px", color: "#333" }}>
+          Delivery Details
+        </h3>
 
         <div style={{ marginBottom: "18px" }}>
-          <label style={{ display: "block", marginBottom: "6px", fontWeight: "600", fontSize: "14px", color: "#333" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "6px",
+              fontWeight: "600",
+              fontSize: "14px",
+              color: "#333",
+            }}
+          >
             Delivery Address <span style={{ color: "#e74c3c" }}>*</span>
           </label>
           <textarea
@@ -315,8 +471,17 @@ function CheckoutPage() {
         </div>
 
         <div style={{ marginBottom: "18px" }}>
-          <label style={{ display: "block", marginBottom: "6px", fontWeight: "600", fontSize: "14px", color: "#333" }}>
-            Delivery Notes <span style={{ color: "#888", fontWeight: "400" }}>(optional)</span>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "6px",
+              fontWeight: "600",
+              fontSize: "14px",
+              color: "#333",
+            }}
+          >
+            Delivery Notes{" "}
+            <span style={{ color: "#888", fontWeight: "400" }}>(optional)</span>
           </label>
           <input
             type="text"
@@ -337,7 +502,15 @@ function CheckoutPage() {
         </div>
 
         <div style={{ marginBottom: "25px" }}>
-          <label style={{ display: "block", marginBottom: "6px", fontWeight: "600", fontSize: "14px", color: "#333" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "6px",
+              fontWeight: "600",
+              fontSize: "14px",
+              color: "#333",
+            }}
+          >
             Payment Method
           </label>
           <select
@@ -357,13 +530,23 @@ function CheckoutPage() {
           >
             <option value="cash_on_delivery">💵 Cash on Delivery</option>
             <option value="online_transfer">🏦 Online Bank Transfer</option>
-            <option value="mobile_banking">📱 Mobile Banking (bKash/Nagad)</option>
+            <option value="mobile_banking">
+              📱 Mobile Banking (bKash/Nagad)
+            </option>
             <option value="card">💳 Credit/Debit Card</option>
           </select>
         </div>
         {/* NEW: Delivery Type Selection */}
         <div style={{ marginBottom: "25px" }}>
-          <label style={{ display: "block", marginBottom: "6px", fontWeight: "600", fontSize: "14px", color: "#333" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "6px",
+              fontWeight: "600",
+              fontSize: "14px",
+              color: "#333",
+            }}
+          >
             Delivery Type
           </label>
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -386,7 +569,13 @@ function CheckoutPage() {
             >
               <div style={{ fontSize: "16px", marginBottom: "4px" }}>🚚</div>
               <div>Normal Delivery</div>
-              <div style={{ fontSize: "12px", color: deliveryType === "normal" ? "#1b5e20" : "#888", marginTop: "4px" }}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: deliveryType === "normal" ? "#1b5e20" : "#888",
+                  marginTop: "4px",
+                }}
+              >
                 ৳60 — Standard delivery, may be batched
               </div>
             </button>
@@ -409,7 +598,13 @@ function CheckoutPage() {
             >
               <div style={{ fontSize: "16px", marginBottom: "4px" }}>⚡</div>
               <div>Express Delivery</div>
-              <div style={{ fontSize: "12px", color: deliveryType === "instant" ? "#bf360c" : "#888", marginTop: "4px" }}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: deliveryType === "instant" ? "#bf360c" : "#888",
+                  marginTop: "4px",
+                }}
+              >
                 ৳150 — Priority, dedicated delivery man
               </div>
             </button>
