@@ -193,7 +193,9 @@ const placeOrder = async (req, res) => {
       // NEW: Calculate delivery fee based on type if not provided
       // Fee is server-defined; never trust the client-sent deliveryFee
       const dFee = deliveryType === 'instant' ? 150 : 60;
-      const disc = parseFloat(discountAmount) || 0;
+      // Clamp to [0, subtotal] so the total can never go below the delivery fee
+      // shortcut: client still chooses the discount; move to server-side Promotion rules
+      const disc = Math.min(Math.max(parseFloat(discountAmount) || 0, 0), subtotal);
       const totalAmount = subtotal + dFee - disc;
       console.log('Subtotal:', subtotal, 'DeliveryFee:', dFee, 'Discount:', disc, 'Total:', totalAmount);
 
@@ -241,13 +243,19 @@ const placeOrder = async (req, res) => {
             },
           });
 
-          const oldStock = item.product.stock;
-          const newStock = oldStock - item.quantity;
-
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: newStock },
+          // Atomic conditional decrement: concurrent orders can't overwrite each other
+          const stockUpdate = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
           });
+          if (stockUpdate.count !== 1) {
+            throw Object.assign(new Error(`Insufficient stock for ${item.product.name}`), { status: 400 });
+          }
+          const { stock: newStock } = await tx.product.findUniqueOrThrow({
+            where: { id: item.productId },
+            select: { stock: true },
+          });
+          const oldStock = newStock + item.quantity;
 
           await tx.inventoryLog.create({
             data: {
@@ -347,7 +355,7 @@ const placeOrder = async (req, res) => {
     console.error('Error name:', error.name);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.status ? error.message : 'Failed to place order' });
   }
 };
 
