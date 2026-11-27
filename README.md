@@ -94,7 +94,7 @@ Farmers list and manage their produce, buyers browse, negotiate, order and track
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, Vite, React Router, Tailwind CSS, shadcn/ui, Leaflet (maps), Sonner (toasts) |
-| Backend | Node.js, Express, Prisma ORM, JSON Web Tokens, bcrypt |
+| Backend | Node.js, Express, Prisma ORM, JSON Web Tokens, bcryptjs |
 | Database | PostgreSQL via Supabase |
 | File storage | Supabase Storage (product images) |
 | Payments | bKash tokenized checkout |
