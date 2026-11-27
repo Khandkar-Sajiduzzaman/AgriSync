@@ -180,20 +180,33 @@ const approveInventoryRequest = async (req, res) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const oldStock = request.product.stock;
-      const newStock = request.requestedStock;
+      // Claim the request atomically so two admins can't both approve it
+      const claimed = await tx.inventoryChangeRequest.updateMany({
+        where: { id: request.id, status: 'PENDING' },
+        data: { status: 'APPROVED' },
+      });
+      if (claimed.count !== 1) {
+        throw Object.assign(new Error('This request has already been processed'), { status: 409 });
+      }
 
+      // Apply the farmer's change as a delta, so orders placed since the request keep their decrements
+      const delta = request.requestedStock - request.currentStock;
       const updatedProduct = await tx.product.update({
         where: { id: request.productId },
-        data: { stock: newStock },
+        data: { stock: { increment: delta } },
       });
+      const newStock = updatedProduct.stock;
+      const oldStock = newStock - delta;
+      if (newStock < 0) {
+        throw Object.assign(new Error('Approval would make stock negative'), { status: 400 });
+      }
 
       await tx.inventoryLog.create({
         data: {
           productId: request.productId,
           oldStock,
           newStock,
-          change: newStock - oldStock,
+          change: delta,
           reason: `inventory_request_approved:${request.reason}`.slice(0, 200),
         },
       });
@@ -224,6 +237,7 @@ const approveInventoryRequest = async (req, res) => {
     });
   } catch (error) {
     console.error('Approve inventory request error:', error);
+    if (error.status) return res.status(error.status).json({ message: error.message });
     res.status(500).json({ message: 'Failed to approve inventory request' });
   }
 };
