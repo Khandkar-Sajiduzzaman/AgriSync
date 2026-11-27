@@ -123,11 +123,17 @@ const checkDeliveryCoverage = async (req, res) => {
   try {
     const { farmerUserId, lat, lng, location } = req.query;
 
-    // No params: return public list of zones with farmer info
-    if (!farmerUserId && !lat && !lng && !location) {
+    // Public list: zones matching location (if given), capped at 50, no contact details
+    if (!farmerUserId) {
+      if (lat || lng) return res.status(400).json({ message: 'farmerUserId is required when checking by coordinates' });
+      const where = location
+        ? { OR: [{ location: { contains: location, mode: 'insensitive' } }, { name: { contains: location, mode: 'insensitive' } }] }
+        : {};
       const zones = await prisma.deliveryZone.findMany({
+        where,
         include: { farmer: { include: { user: true } } },
         orderBy: { createdAt: 'desc' },
+        take: 50,
       });
 
       const shaped = zones.map((z) => ({
@@ -137,7 +143,6 @@ const checkDeliveryCoverage = async (req, res) => {
               _id: z.farmer.userId,
               name: z.farmer.user?.name || null,
               profileImage: z.farmer.user?.profileImage || null,
-              phone: z.farmer.user?.phone || null,
               farmName: z.farmer.farmName || null,
               farmLocation: z.farmer.farmLocation || null,
             }
@@ -148,7 +153,6 @@ const checkDeliveryCoverage = async (req, res) => {
     }
 
     // If a farmerUserId is provided, check only that farmer's zones
-    if (!farmerUserId) return res.status(400).json({ message: 'farmerUserId is required when checking a specific farmer' });
 
     const farmerProfile = await prisma.farmerProfile.findUnique({ where: { userId: farmerUserId } });
     if (!farmerProfile) return res.status(404).json({ message: 'Farmer not found' });
@@ -227,7 +231,6 @@ const getFarmersInZone = async (req, res) => {
         _id: fp.user?.id || fp.userId,
         name: fp.user?.name || null,
         profileImage: fp.user?.profileImage || null,
-        phone: fp.user?.phone || null,
         farmName: fp.farmName || null,
         farmLocation: fp.farmLocation || null,
         averageRating: fp.averageRating || 0,

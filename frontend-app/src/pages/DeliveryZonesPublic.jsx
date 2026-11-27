@@ -101,7 +101,6 @@ export default function DeliveryZonesPublic() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 700 }}>Contact</div>
-                      <div style={{ color: '#6b7280', fontSize: 13 }}>{f.phone || '—'}</div>
                     </div>
                   </div>
                 </div>
