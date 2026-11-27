@@ -538,7 +538,7 @@ function OrderDetailPage() {
                 <button
                   key={action.status || action.action}
                   onClick={() => {
-                    if (action.action === "assign") {
+                    if (action.action === "choose_dm") {
                       loadDeliveryMen();
                       setShowAssignModal(true);
                     } else {

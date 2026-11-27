@@ -121,6 +121,7 @@ const sendMessage = async (req, res) => {
     const receiver = await prisma.user.findUnique({ where: { id: receiverId } });
     if (!receiver) {
       return res.status(404).json({ message: 'Receiver not found' });
+    }
     // Run spam & hate speech checks
     const spamCheck = checkSpam(senderId, content);
     if (spamCheck.blocked) {
@@ -142,7 +143,6 @@ const sendMessage = async (req, res) => {
     });
 
     res.status(201).json(message);
-  }
  }
   catch (error) {
     console.error('Send message error:', error);

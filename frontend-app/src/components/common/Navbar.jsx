@@ -36,7 +36,7 @@ function Navbar({ onLogout }) {
     getActiveOffers()
       .then((offers) => setActiveOfferCount(offers.length))
       .catch(() => setActiveOfferCount(0));
-  }, [role, location.pathname]);
+  }, [role]);
 
   const active = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";

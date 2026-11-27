@@ -24,7 +24,9 @@ const getBkashToken = async () => {
 const createBkashPayment = async (req, res) => {
   try {
     const { orderId } = req.body;
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, buyerId: req.user.id },
+    });
 
     if (!order) return res.status(404).json({ message: "Order not found" });
 

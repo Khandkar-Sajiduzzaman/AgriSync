@@ -114,7 +114,7 @@ function AdminDashboard() {
       loadUsers();
       loadStats();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to update status");
+      alert(err.message || "Failed to update status");
     }
   };
 

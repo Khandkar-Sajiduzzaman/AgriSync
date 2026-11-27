@@ -434,7 +434,7 @@ const respondToDeliveryRequest = async (req, res) => {
       return res.status(404).json({ message: 'Delivery request not found' });
     }
 
-    if (request.deliveryManId !== req.user.id && req.user.role !== 'admin') {
+    if (request.deliveryManId !== req.user.id) {
       return res.status(403).json({ message: 'This request is not for you' });
     }
 

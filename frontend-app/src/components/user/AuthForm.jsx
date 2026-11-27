@@ -46,7 +46,8 @@ function AuthForm({ onAuthSuccess }) {
           : await loginUser(form)
 
       localStorage.setItem("token", data.token)
-      localStorage.setItem("user", JSON.stringify(data))
+      const { token, ...user } = data
+      localStorage.setItem("user", JSON.stringify(user))
       onAuthSuccess(data)
       toast.success(mode === "register" ? "Account created!" : "Welcome back!")
     } catch (err) {

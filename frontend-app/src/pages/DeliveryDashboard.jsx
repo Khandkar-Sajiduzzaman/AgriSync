@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, updateOrderStatus } from "../api/orderApi";
-import { getDeliveryRequests, respondToDeliveryRequest, getMyActiveDeliveries, toggleAvailability } from "../api/deliveryApi";
+import { getDeliveryRequests, respondToDeliveryRequest, toggleAvailability } from "../api/deliveryApi";
 
 const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
 

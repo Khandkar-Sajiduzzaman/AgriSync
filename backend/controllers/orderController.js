@@ -191,10 +191,8 @@ const placeOrder = async (req, res) => {
       }
 
       // NEW: Calculate delivery fee based on type if not provided
-      let dFee = parseFloat(deliveryFee) || 0;
-      if (dFee === 0) {
-        dFee = deliveryType === 'instant' ? 150 : 60; // Instant costs more
-      }
+      // Fee is server-defined; never trust the client-sent deliveryFee
+      const dFee = deliveryType === 'instant' ? 150 : 60;
       const disc = parseFloat(discountAmount) || 0;
       const totalAmount = subtotal + dFee - disc;
       console.log('Subtotal:', subtotal, 'DeliveryFee:', dFee, 'Discount:', disc, 'Total:', totalAmount);
@@ -580,7 +578,9 @@ const updateOrderStatus = async (req, res) => {
         }
         const currentIndex = flow.indexOf(existingOrder.status);
         const newIndex = flow.indexOf(status);
-        if (newIndex > currentIndex || status === 'cancelled') {
+        // Cancel only before shipping; never move a cancelled order forward or back
+        const cancelAllowed = ['pending', 'confirmed', 'processing', 'awaiting_delivery'].includes(existingOrder.status);
+        if (status === 'cancelled' ? cancelAllowed : existingOrder.status !== 'cancelled' && newIndex > currentIndex) {
           canUpdate = true;
         }
       }

@@ -9,7 +9,7 @@ const deliveryZoneRoutes = require("./routes/deliveryZoneRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
 const userRoutes = require("./routes/userRoutes");
-const productRoutes = require("./routes/productRoutes");
+const productRoutes = require("./routes/productroutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
@@ -63,10 +63,11 @@ app.get("/", (req, res) => {
 app.use((err, req, res, next) => {
   console.error("ERROR:", err.message);
   console.error(err.stack);
-  res.status(err.status || 500).json({
-    message: err.message || "Something went wrong!",
-    // Only show stack trace in development
-    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+  const status = err.status || 500;
+  res.status(status).json({
+    message: status < 500 ? err.message : "Something went wrong!",
+    // Stack trace only when explicitly in development
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
 
