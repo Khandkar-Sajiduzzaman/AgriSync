@@ -26,9 +26,9 @@ const protect = async (req, res, next) => {
       const cached = userCache.get(decoded.id);
       if (cached && cached.expiresAt > Date.now()) {
         // SECURITY: Verify user is still active
-        if (cached.user.accountStatus === 'suspended') {
+        if (cached.user.accountStatus !== 'active') {
           userCache.delete(decoded.id);
-          return res.status(403).json({ message: 'Account suspended' });
+          return res.status(403).json({ message: 'Account is not active' });
         }
         req.user = cached.user;
         return next();
@@ -57,8 +57,8 @@ const protect = async (req, res, next) => {
       }
 
       // SECURITY: Block suspended accounts
-      if (user.accountStatus === 'suspended') {
-        return res.status(403).json({ message: 'Account suspended' });
+      if (user.accountStatus !== 'active') {
+        return res.status(403).json({ message: 'Account is not active' });
       }
 
       // SECURITY: Prevent cache from growing forever

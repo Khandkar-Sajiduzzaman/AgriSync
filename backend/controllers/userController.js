@@ -111,6 +111,9 @@ const loginUser = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (user && (await bcrypt.compare(password, user.password))) {
+      if (user.accountStatus !== 'active') {
+        return res.status(403).json({ message: 'Account is not active' });
+      }
       res.json({
         _id: user.id,
         name: user.name,

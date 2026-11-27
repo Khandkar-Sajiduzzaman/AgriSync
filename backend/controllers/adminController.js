@@ -1,4 +1,5 @@
 const prisma = require('../config/db');
+const { userCache } = require('../middleware/authMiddleware');
 
 const withId = (obj) => (obj ? { ...obj, _id: obj.id } : obj);
 
@@ -133,6 +134,8 @@ const updateUserStatus = async (req, res) => {
 
       return u;
     });
+
+    userCache.delete(id); // drop cached auth so the new status applies immediately
 
     res.json({ message: `User status updated to ${accountStatus}`, user: withId(updated) });
   } catch (error) {
