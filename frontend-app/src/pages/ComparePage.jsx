@@ -1,3 +1,4 @@
+import { assetUrl } from "../lib/utils";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCompare } from "../context/CompareContext";
@@ -413,7 +414,7 @@ function ComparePage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                         {p.images?.length > 0 ? (
                           <img
-                            src={`http://localhost:5000${p.images[0]}`}
+                            src={assetUrl(p.images[0])}
                             alt={p.name}
                             style={{ width: "100%", height: "120px", objectFit: "cover", borderRadius: "8px" }}
                           />

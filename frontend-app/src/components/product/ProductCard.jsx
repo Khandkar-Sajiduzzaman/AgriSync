@@ -1,3 +1,4 @@
+import { assetUrl } from "../../lib/utils";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { addToCart } from "../../api/cartApi";
@@ -62,7 +63,7 @@ function ProductCard({
     >
       {product.images && product.images.length > 0 ? (
         <img
-          src={product.images[0].startsWith('http') ? product.images[0] : `http://localhost:5000${product.images[0]}`}
+          src={assetUrl(product.images[0])}
           alt={product.name}
           loading="lazy"
           style={{ width: "100%", height: "150px", objectFit: "cover", borderRadius: "8px" }}

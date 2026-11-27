@@ -1,3 +1,4 @@
+import { assetUrl } from "../lib/utils";
 import { useState, useEffect } from "react";
 import { getProfile, updateProfile, uploadProfileImage } from "../api/userApi";
 
@@ -114,7 +115,7 @@ function ProfilePage() {
         <div style={{ display: "flex", alignItems: "center", gap: "20px", marginBottom: "28px" }}>
           {profile.profileImage ? (
             <img
-              src={`http://localhost:5000${profile.profileImage}`}
+              src={assetUrl(profile.profileImage)}
               alt="Profile"
               width={80}
               height={80}

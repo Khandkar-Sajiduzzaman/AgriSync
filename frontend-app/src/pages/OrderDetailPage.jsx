@@ -1,3 +1,4 @@
+import { assetUrl } from "../lib/utils";
 import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
@@ -357,7 +358,7 @@ function OrderDetailPage() {
                 >
                   {item.product?.images?.[0] ? (
                     <img
-                      src={`http://localhost:5000${item.product.images[0]}`}
+                      src={assetUrl(item.product.images[0])}
                       alt={item.productName || item.product?.name}
                       style={{ width: "56px", height: "56px", borderRadius: "10px", objectFit: "cover" }}
                     />

@@ -1,3 +1,4 @@
+import { assetUrl } from "../lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getCart, updateCartQuantity, removeFromCart } from "../api/cartApi";
@@ -179,7 +180,7 @@ function Cart() {
                 {/* Product Image */}
                 {item.product.images && item.product.images.length > 0 ? (
                   <img
-                    src={`http://localhost:5000${item.product.images[0]}`}
+                    src={assetUrl(item.product.images[0])}
                     alt={item.product.name}
                     loading="lazy"
                     style={{
