@@ -44,6 +44,8 @@ const protect = async (req, res, next) => {
           role: true,
           phone: true,
           address: true,
+          latitude: true,
+          longitude: true,
           bio: true,
           profileImage: true,
           accountStatus: true,
