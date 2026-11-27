@@ -484,28 +484,34 @@ const respondToDeliveryRequest = async (req, res) => {
 
     // Process the response
     await prisma.$transaction(async (tx) => {
-      // Update this request
-      await tx.deliveryRequest.update({
-        where: { id: requestId },
-        data: {
-          status: responseStatus,
-          respondedAt: new Date(),
-        },
+      // Claim this request atomically: only a still-pending request can be answered
+      const claimed = await tx.deliveryRequest.updateMany({
+        where: { id: requestId, status: 'pending' },
+        data: { status: responseStatus, respondedAt: new Date() },
       });
+      if (claimed.count !== 1) {
+        throw Object.assign(new Error('This request has already been responded to'), { status: 409 });
+      }
 
       if (responseStatus === 'accepted') {
-        // Assign delivery man to order
-        await tx.order.update({
-          where: { id: order.id },
+        // Assign only if the order is still unassigned and still active
+        const assigned = await tx.order.updateMany({
+          where: { id: order.id, deliveryManId: null, status: { in: ['confirmed', 'processing', 'awaiting_delivery'] } },
           data: { deliveryManId: req.user.id },
         });
+        if (assigned.count !== 1) {
+          throw Object.assign(new Error('This order already has a delivery man assigned'), { status: 400 });
+        }
 
-        // For instant delivery, mark delivery man as unavailable
+        // For instant delivery, mark delivery man as unavailable (fails if already busy)
         if (order.deliveryType === 'instant') {
-          await tx.deliveryManProfile.update({
-            where: { userId: req.user.id },
+          const busy = await tx.deliveryManProfile.updateMany({
+            where: { userId: req.user.id, isAvailable: true },
             data: { isAvailable: false },
           });
+          if (busy.count !== 1) {
+            throw Object.assign(new Error('You are currently busy with another instant delivery'), { status: 400 });
+          }
         }
 
         // Mark ALL other pending requests for this order as EXPIRED
@@ -539,6 +545,20 @@ const respondToDeliveryRequest = async (req, res) => {
           data: { orderId: order.id, orderNumber: order.orderNumber },
         });
       } else {
+        // If no other request is pending, put the order back so the farmer can resend it
+        const stillPending = await tx.deliveryRequest.count({ where: { orderId: order.id, status: 'pending' } });
+        if (stillPending === 0) {
+          const reopened = await tx.order.updateMany({
+            where: { id: order.id, status: 'awaiting_delivery', deliveryManId: null },
+            data: { status: 'confirmed' },
+          });
+          if (reopened.count === 1) {
+            await tx.orderStatusHistory.create({
+              data: { orderId: order.id, status: 'confirmed', notes: 'Delivery request declined; awaiting another delivery man', changedBy: req.user.id },
+            });
+          }
+        }
+
         // Rejected: notify farmer so they can find someone else
         await createNotification(tx, {
           userId: order.farmerId,
@@ -559,7 +579,8 @@ const respondToDeliveryRequest = async (req, res) => {
     });
   } catch (error) {
     console.error('Respond to delivery request error:', error);
-    res.status(500).json({ message: error.message });
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to respond to delivery request' });
   }
 };
 
