@@ -554,7 +554,6 @@ async function main() {
         deliveryNotes: pick(["Call before delivery", "Leave at gate", "Ring doorbell", "Contact via phone", ""]),
         deliveryManId: hasDeliveryMan ? dm.id : null,
         estimatedDelivery: status !== "pending" ? new Date(Date.now() + randInt(1, 5) * 86400000) : null,
-        deliveredAt: status === "delivered" ? randDate(10) : null,
         deliveryType,
         deliveryCity,
         deliveryArea,
