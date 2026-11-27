@@ -7,6 +7,8 @@ const LiveMap = lazy(() => import("../components/delivery/LiveMap"));
 
 function DeliveryDashboard() {
   const [orders, setOrders] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [locationEnabled, setLocationEnabled] = useState(() => {
@@ -23,8 +25,9 @@ function DeliveryDashboard() {
     setLoading(true);
     try {
       // Use getMyActiveDeliveries for better organization, fallback to getMyOrders
-      const result = await getMyOrders();
+      const result = await getMyOrders(page);
       setOrders(result.data || []);
+      setTotalPages(result.totalPages || 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,6 +51,9 @@ function DeliveryDashboard() {
 
   useEffect(() => {
     loadOrders();
+  }, [page]);
+
+  useEffect(() => {
     loadDeliveryRequests();
   }, []);
 
@@ -390,6 +396,13 @@ function DeliveryDashboard() {
             ))}
           </div>
         </>
+      )}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "12px", marginTop: "20px" }}>
+          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
+          <span style={{ fontSize: "14px", color: "#4b5563" }}>Page {page} of {totalPages}</span>
+          <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+        </div>
       )}
     </div>
   );

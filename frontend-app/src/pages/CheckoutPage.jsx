@@ -4,6 +4,7 @@ import { getCart } from "../api/cartApi";
 import { placeOrder } from "../api/orderApi";
 import { useCart } from "../context/CartContext";
 import { createBkashPayment } from "../api/paymentApi";
+import { getProfile } from "../api/userApi";
 
 function CheckoutPage() {
   const [cart, setCart] = useState({
@@ -23,7 +24,6 @@ function CheckoutPage() {
   // BUG FIX: Destructure BOTH clearCart and refreshCart from context
   const { clearCart, refreshCart } = useCart();
 
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
 
 
   const deliveryFee = deliveryType === "instant" ? 150 : 60;
@@ -32,7 +32,11 @@ function CheckoutPage() {
 
   useEffect(() => {
     loadCart();
-    if (user.address) setDeliveryAddress(user.address);
+    getProfile()
+      .then((profile) => {
+        if (profile.address) setDeliveryAddress(profile.address);
+      })
+      .catch(() => {});
   }, []);
 
   const loadCart = async () => {

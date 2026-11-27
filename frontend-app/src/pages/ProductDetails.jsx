@@ -1,3 +1,4 @@
+import { assetUrl } from "../lib/utils";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createOffer } from "../api/negotiationApi";
@@ -15,7 +16,7 @@ import { Textarea } from "../components/ui/textarea";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 import { getProduct, recordProductView } from "../api/productApi";
-import { getWishlist, toggleWishlist, getFollowedFarmers, toggleFollowFarmer } from "../api/userApi";
+import { getWishlist, toggleWishlist, getFollowedFarmers, toggleFollowFarmer, getProfile } from "../api/userApi";
 import { getProductReviews, canReviewProduct } from "../api/reviewApi";
 import ReviewForm from "../components/product/ReviewForm";
 import ReviewsList from "../components/product/ReviewsList";
@@ -42,6 +43,8 @@ function ProductDetails() {
   const [reviewSort, setReviewSort] = useState("newest");
   const [canReview, setCanReview] = useState({ canReview: false, orderId: null });
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [buyerProfile, setBuyerProfile] = useState(null);
+  const [deliveryAvailability, setDeliveryAvailability] = useState(null);
 
   const role = JSON.parse(localStorage.getItem("user"))?.role;
   const [offerPrice, setOfferPrice] = useState("");
@@ -83,14 +86,18 @@ function ProductDetails() {
     loadData();
   }, [id]);
 
+  // Full profile (address, coordinates) is not stored at login, so fetch it for buyers
+  useEffect(() => {
+    if (role !== "buyer") return;
+    getProfile().then(setBuyerProfile).catch(() => {});
+  }, [role]);
+
   // Check delivery coverage for buyers
   useEffect(() => {
     const checkDelivery = async () => {
       try {
-        if (!product) return;
-        const user = JSON.parse(localStorage.getItem('user')) || {};
-        const isBuyer = user?.role === 'buyer';
-        if (!isBuyer) return;
+        if (!product || role !== "buyer") return;
+        const user = buyerProfile || {};
         const { checkDeliveryCoverage } = await import('../api/deliveryZoneApi');
         // Prefer lat/lng if buyer stored location, otherwise use address field
         const lat = user.latitude;
@@ -105,14 +112,13 @@ function ProductDetails() {
           // no buyer location available — skip
           return;
         }
-        // attach info to product state
-        setProduct((p) => ({ ...p, deliveryAvailability: res }));
+        setDeliveryAvailability(res);
       } catch (err) {
         console.error('Failed to check delivery coverage', err);
       }
     };
     checkDelivery();
-  }, [product]);
+  }, [product?._id, buyerProfile]);
 
   useEffect(() => {
     if (id) loadReviews();
@@ -205,7 +211,7 @@ function ProductDetails() {
         <div>
           {product.images?.length > 0 && (
             <img
-              src={`http://localhost:5000${product.images[0]}`}
+              src={assetUrl(product.images[0])}
               alt={product.name}
               style={{
                 width: "100%",
@@ -282,10 +288,10 @@ function ProductDetails() {
             </div>
           )}
           {/* ===== END TRACEABILITY DISPLAY ===== */}
-          {product.deliveryAvailability && (
-            <div style={{ marginTop: 8, padding: '10px', borderRadius: 8, background: product.deliveryAvailability.delivers ? '#ecfdf5' : '#fff1f2', color: product.deliveryAvailability.delivers ? '#065f46' : '#991b1b' }}>
-              {product.deliveryAvailability.delivers ? (
-                <div>Delivery available to your location{product.deliveryAvailability.matchedZone ? ` — ${product.deliveryAvailability.matchedZone.name}` : ''}.</div>
+          {deliveryAvailability && (
+            <div style={{ marginTop: 8, padding: '10px', borderRadius: 8, background: deliveryAvailability.delivers ? '#ecfdf5' : '#fff1f2', color: deliveryAvailability.delivers ? '#065f46' : '#991b1b' }}>
+              {deliveryAvailability.delivers ? (
+                <div>Delivery available to your location{deliveryAvailability.matchedZone ? ` — ${deliveryAvailability.matchedZone.name}` : ''}.</div>
               ) : (
                 <div>Delivery not available to your location.</div>
               )}

@@ -1,3 +1,4 @@
+import { assetUrl } from "../lib/utils";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, updateOrderStatus } from "../api/orderApi";
@@ -5,6 +6,8 @@ import { findNearbyDeliveryMen, sendDeliveryRequest } from "../api/deliveryApi";
 
 function OrdersPage() {
   const [orders, setOrders] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
@@ -21,13 +24,14 @@ function OrdersPage() {
 
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [page]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const result = await getMyOrders();
+      const result = await getMyOrders(page);
       setOrders(result.data || []);
+      setTotalPages(result.totalPages || 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -268,7 +272,7 @@ function OrdersPage() {
                       >
                         {item.product?.images?.[0] && (
                           <img
-                            src={`http://localhost:5000${item.product.images[0]}`}
+                            src={assetUrl(item.product.images[0])}
                             alt=""
                             style={{ width: "28px", height: "28px", borderRadius: "4px", objectFit: "cover" }}
                           />
@@ -466,6 +470,13 @@ function OrdersPage() {
               Cancel
             </button>
           </div>
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "12px", marginTop: "20px" }}>
+          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
+          <span style={{ fontSize: "14px", color: "#4b5563" }}>Page {page} of {totalPages}</span>
+          <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
         </div>
       )}
     </div>
